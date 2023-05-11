@@ -144,33 +144,29 @@ class ParseError(Exception):
         return message
 
 
+@dataclass
 class Pos:
     """Represent a Line:Column position."""
 
-    def __init__(self, line, column, start_line=None) -> None:
-        self.line = line
-        self.column = column
-        self.start_line = start_line if start_line is not None else line
+    line: int
+    column: int
 
     def move_line(self, *, line=None, column=None):
         return Pos(
             self.line + line if line is not None else self.line,
             column if column is not None else self.column,
-            start_line=self.start_line,
         )
 
     def move_column(self, *, line=None, column=None):
         return Pos(
             line if line is not None else self.line,
             self.column + column if column is not None else self.column,
-            start_line=self.start_line,
         )
 
-    def normalize(self):
+    def normalize(self, relative: "Pos"):
         return Pos(
-            line=self.line - self.start_line,
+            line=self.line - relative.line,
             column=self.column,
-            start_line=self.start_line,
         )
 
 
@@ -181,6 +177,15 @@ class Section:
     valid_heading: bool
     start: Pos
     end: Pos
+
+    def __eq__(self, other) -> bool:
+        if isinstance(other, str):
+            return self.name == other
+        else:
+            return self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
 
 
 _PYTHON_VERSION = "{}.{}.{}".format(*sys.version_info)

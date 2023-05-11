@@ -21,6 +21,14 @@ class Test:
         ------
         test.
 
+
+        Examples
+        --------
+        This is an example.
+
+        >>> from test import test
+        >>> test.print()
+
         Parameters
         ----------
         test : int

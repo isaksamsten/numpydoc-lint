@@ -34,9 +34,16 @@ class Error:
         The end position.
     """
 
-    def __init__(self, start: Pos, end: Pos = None, docstring : Docstring) -> None:
-        self.start = start
-        self.end = end if end is not None else start
+    def __init__(
+        self,
+        *,
+        docstring: Docstring,
+        start: Pos = None,
+        end: Pos = None,
+    ) -> None:
+        self.start = start if start is not None else docstring.start
+        self.end = end if end is not None else self.start
+        self.docstring = docstring
 
     @abstractproperty
     def code(self) -> str:
@@ -62,17 +69,17 @@ class Error:
         """
         pass
 
-    # @property
-    # def details(self) -> Optional[str]:
-    #     """
-    #     Details on the error.
-    #
-    #     Returns
-    #     -------
-    #     Optional[str]
-    #         The details.
-    #     """
-    #     return None
+    @property
+    def details(self) -> Optional[str]:
+        """
+        Details on the error.
+
+        Returns
+        -------
+        Optional[str]
+            The details.
+        """
+        return None
 
     @property
     def suggestion(self) -> str:
@@ -101,13 +108,9 @@ class Error:
 
 
 class GL08(Error):
-    def __init__(self, start: Pos, end: Pos, type: str) -> None:
-        super().__init__(start, end)
-        self.type = type
-
     @property
     def message(self) -> str:
-        return f"The {self.type} does not have a docstring"
+        return f"The {self.docstring.type} does not have a docstring"
 
     @property
     def terminate(self) -> bool:
@@ -143,13 +146,31 @@ class GL04(Error):
 
 
 class GL06(Error):
-    def __init__(self, section: Section):
-        super().__init__(section.start, section.end)
+    def __init__(self, *, docstring: Docstring, section: Section):
+        super().__init__(start=section.start, end=section.end, docstring=docstring)
         self.section = section
 
     @property
     def message(self):
         return f"Docstring contains unexpected section ('{self.section.name}')"
+
+
+class GL07(Error):
+    def __init__(
+        self, docstring: Docstring, expected_section: str, actual_section: Section
+    ) -> None:
+        super().__init__(
+            docstring=docstring, start=actual_section.start, end=actual_section.end
+        )
+        self.expected_section = expected_section
+
+    @property
+    def message(self):
+        return "Sections are in the wrong order"
+
+    @property
+    def suggestion(self):
+        return f"Section should be `{self.expected_section}`"
 
 
 def empty_prefix_lines(doc: Docstring):
@@ -196,7 +217,7 @@ class GL08Check(Check):
 
     def validate(self, doc: Docstring) -> Optional[Error]:
         if not doc.has_docstring:
-            yield GL08(doc.start, doc.end, doc.name)
+            yield GL08(start=doc.start, end=doc.end, docstring=doc)
 
 
 class GL01Check(Check):
@@ -204,13 +225,13 @@ class GL01Check(Check):
 
     def validate(self, doc: Docstring) -> Optional[Error]:
         if empty_prefix_lines(doc) != 1 and "\n" in doc.raw_docstring:
-            yield GL01(doc.start, doc.end)
+            yield GL01(start=doc.start, docstring=doc)
 
 
 class GL02Check(Check):
     def validate(self, doc: Docstring) -> Optional[Error]:
         if empty_suffix_lines(doc) != 1 and "\n" in doc.raw_docstring:
-            yield GL02(doc.end.move_line(line=-1), doc.end)
+            yield GL02(start=doc.end.move_line(line=-1), docstring=doc)
 
 
 class GL03Check(Check):
@@ -218,7 +239,7 @@ class GL03Check(Check):
         prev = True
         for i, row in enumerate(doc.docstring_lines):
             if not prev and not row.strip() and i < len(doc.docstring_lines) - 1:
-                yield GL03(doc.start.move_line(line=i), doc.start.move_line(line=i))
+                yield GL03(start=doc.start.move_line(line=i), docstring=doc)
             prev = row.strip()
         return None
 
@@ -229,8 +250,9 @@ class GL04Check(Check):
             first = next(re.finditer("^\s*(\t)", line), None)
             if first:
                 yield GL04(
-                    doc.start.move_line(line=i, column=first.start(0)),
-                    doc.start.move_line(line=i, column=first.end(0)),
+                    start=doc.start.move_line(line=i, column=first.start(0)),
+                    end=doc.start.move_line(line=i, column=first.end(0)),
+                    docstring=doc,
                 )
 
 
@@ -238,7 +260,26 @@ class GL06Check(Check):
     def validate(self, doc: Docstring) -> Optional[Error]:
         for section in doc.section_titles:
             if section.name not in _ALLOWED_SECTIONS:
-                yield GL06(section)
+                yield GL06(docstring=doc, section=section)
+
+
+class GL07Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        expected_sections = [
+            section for section in _ALLOWED_SECTIONS if section in doc.section_titles
+        ]
+        actual_sections = [
+            section
+            for section in doc.section_titles
+            if section.name in _ALLOWED_SECTIONS
+        ]
+        for expected_section, actual_section in zip(expected_sections, actual_sections):
+            if expected_section != actual_section.name:
+                yield GL07(
+                    docstring=doc,
+                    expected_section=expected_section,
+                    actual_section=actual_section,
+                )
 
 
 _CHECKS = OrderedDict(
@@ -248,6 +289,7 @@ _CHECKS = OrderedDict(
     GL03=GL03Check(),
     GL04=GL04Check(),
     GL06=GL06Check(),
+    GL07=GL07Check(),
 )
 
 
@@ -292,22 +334,40 @@ class ErrorFormatter:
                 output.write(self._format_error(file, error))
 
 
-class LineDetailMixin:
-    @property
-    def details(self):
-        line = str(self.start.line)
-        offending_line = f"{line} | {self.context[self.start.normalize().line]}\n"
+class DetailedErrorFormatter(ErrorFormatter):
+    def _format_error(self, file: str, error: Error) -> str:
+        line = str(error.start.line)
+        docstring = error.docstring
+        if docstring.has_docstring:
+            error_start = error.start.normalize(docstring.start)
+            offending_lines = []
 
-        line_pad = (" " * len(line)) + " | " + (" " * self.start.column)
-        underline_len = self.end.column - self.start.column
-        if underline_len == 0:
-            underline_len = 1
-        underline = line_pad + ("^" * underline_len) + "\n"
-        line_mark = line_pad + (" " * (underline_len - 1)) + "|\n"
-        message = line_pad + (" " * (underline_len - 1)) + self.message
+            for i in range(max(0, error_start.line - 2), error_start.line + 1):
+                offending_lines.append(
+                    "{} | {}\n".format(
+                        docstring.start.line + i, docstring.docstring_lines[i]
+                    )
+                )
+            offending_line = "".join(offending_lines)
 
-        return offending_line + underline + line_mark + message
+            line_pad = (" " * len(line)) + " | " + (" " * error.start.column)
+            underline_len = error.end.column - error.start.column
+            if underline_len == 0:
+                underline_len = 1
+            underline = line_pad + ("^" * underline_len) + "\n"
+            if error.suggestion:
+                line_mark = line_pad + (" " * (underline_len - 1)) + "|\n"
+                suggestion = (
+                    line_mark
+                    + line_pad
+                    + (" " * (underline_len - 1))
+                    + error.suggestion
+                )
+            else:
+                suggestion = ""
 
-
-class DetailErrorFormatter(ErrorFormatter):
-    pass
+            return "error[{}]: {}\n{}{}{}\n".format(
+                error.code, error.message, offending_line, underline, suggestion
+            )
+        else:
+            return super()._format_error(file, error)
