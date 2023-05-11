@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=58"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "numpydoc_lint"
+authors = [{ name = "Isak Samsten", email = "isak@samsten.se" }]
+readme = "README.md"
+description = "Simple linter for numpydoc."
+dynamic = ["version"]
+license = { text = "BSD-3-Clause" }
+dependencies = ["parso>=0.8.3", "numpydoc>=1.5.0"]
+classifiers = [
+    'License :: OSI Approved :: MIT License',
+    'Operating System :: MacOS',
+    'Operating System :: POSIX :: Linux',
+    'Operating System :: POSIX',
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: Implementation :: PyPy',
+    'Topic :: Software Development :: Documentation',
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "numpydoc_lint.__version__" }
+
+[tool.ruff]
+select = ["E", "F", "D"] 
+ignore = ["PLR2004", "N803", "N806"]
+
+[tool.ruff.per-file-ignores]
+"docs/conf.py" = ["E", "F", "D", "N", "PL", "RUF", "I001"]
+"tests/**/*.py" = ["E", "F", "D", "N", "PL", "RUF" ]
+
+[tool.ruff.pylint]
+max-args = 15 # We use many keyword arguments for estimators
+
+[tool.ruff.pydocstyle]
+convention = "numpy"

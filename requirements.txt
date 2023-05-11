@@ -1,0 +1,2 @@
+numpydoc>=1.5.0
+parso>=0.8.3
