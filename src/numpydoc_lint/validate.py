@@ -1,6 +1,7 @@
 import re
 import io
-from .numpydoc import Docstring, Pos, Section
+import itertools
+from .numpydoc import Docstring, Pos, Section, Paragraph
 from typing import Optional, Generator, Iterable, Mapping
 from abc import ABCMeta, abstractmethod, abstractproperty
 from collections import OrderedDict, defaultdict
@@ -122,15 +123,15 @@ class GL01(Error):
     def message(self):
         return "Docstring should start on a new line."
 
-    @property
-    def suggestion(self):
-        return ""
-
 
 class GL02(Error):
     @property
     def message(self):
         return "Docstring should end one line before the closing quotes."
+
+    @property
+    def suggestion(self):
+        return "Remove empty line"
 
 
 class GL03(Error):
@@ -147,12 +148,18 @@ class GL04(Error):
 
 class GL06(Error):
     def __init__(self, *, docstring: Docstring, section: Section):
-        super().__init__(start=section.start, end=section.end, docstring=docstring)
+        super().__init__(
+            start=section.start_header, end=section.end_header, docstring=docstring
+        )
         self.section = section
 
     @property
     def message(self):
-        return f"Docstring contains unexpected section ('{self.section.name}')"
+        return "Docstring contains unexpected section)."
+
+    @property
+    def suggestion(self):
+        return "Remove section or fix spelling."
 
 
 class GL07(Error):
@@ -160,17 +167,45 @@ class GL07(Error):
         self, docstring: Docstring, expected_section: str, actual_section: Section
     ) -> None:
         super().__init__(
-            docstring=docstring, start=actual_section.start, end=actual_section.end
+            docstring=docstring,
+            start=actual_section.start_header,
+            end=actual_section.end_header,
         )
         self.expected_section = expected_section
 
     @property
     def message(self):
-        return "Sections are in the wrong order"
+        return "Sections are in the wrong order."
 
     @property
     def suggestion(self):
-        return f"Section should be `{self.expected_section}`"
+        return f"Section should be `{self.expected_section}`."
+
+
+class GL09(Error):
+    def __init__(
+        self, *, docstring: Docstring, start: Pos, end: Pos, first: Pos
+    ) -> None:
+        super().__init__(docstring=docstring, start=start, end=end)
+        self.first = first
+
+    @property
+    def message(self):
+        return "Deprecation warning should precede extended summary."
+
+    @property
+    def suggestion(self):
+        return f"Move deprecation warning to line {self.first.line}"
+
+
+class GL11(Error):
+    @property
+    def message(self):
+        return "Summary should only contain a single deprecation warning."
+
+    @property
+    def suggestion(self):
+        return "Remove duplicate deprecation warning."
 
 
 def empty_prefix_lines(doc: Docstring):
@@ -258,7 +293,7 @@ class GL04Check(Check):
 
 class GL06Check(Check):
     def validate(self, doc: Docstring) -> Optional[Error]:
-        for section in doc.section_titles:
+        for section in doc.sections:
             if section.name not in _ALLOWED_SECTIONS:
                 yield GL06(docstring=doc, section=section)
 
@@ -266,12 +301,10 @@ class GL06Check(Check):
 class GL07Check(Check):
     def validate(self, doc: Docstring) -> Generator[Error, None, None]:
         expected_sections = [
-            section for section in _ALLOWED_SECTIONS if section in doc.section_titles
+            section for section in _ALLOWED_SECTIONS if section in doc.sections
         ]
         actual_sections = [
-            section
-            for section in doc.section_titles
-            if section.name in _ALLOWED_SECTIONS
+            section for section in doc.sections if section.name in _ALLOWED_SECTIONS
         ]
         for expected_section, actual_section in zip(expected_sections, actual_sections):
             if expected_section != actual_section.name:
@@ -282,14 +315,68 @@ class GL07Check(Check):
                 )
 
 
+def find_deprectated(paragraph: Paragraph):
+    if paragraph:
+        for i, line in enumerate(paragraph.contents):
+            if ".. deprecated:: " in line:
+                yield paragraph.start.move(line=i)
+
+
+class GL09Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        if doc.summary:
+            deprecated_markers = list(
+                itertools.chain(
+                    find_deprectated(doc.summary.content),
+                    find_deprectated(doc.summary.extended_content),
+                )
+            )
+
+            if deprecated_markers:
+                paragraph = (
+                    doc.summary.extended_content
+                    if doc.summary.extended_content is not None
+                    else doc.summary
+                )
+                if deprecated_markers[0].line != paragraph.start.line:
+                    yield GL09(
+                        docstring=doc,
+                        start=deprecated_markers[0],
+                        end=deprecated_markers[0].move(column=15),
+                        first=paragraph.start,
+                    )
+
+
+class GL11Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        if doc.summary:
+            marks = list(
+                itertools.chain(
+                    find_deprectated(doc.summary.content),
+                    find_deprectated(doc.summary.extended_content),
+                )
+            )
+            if len(marks) > 1:
+                for mark in marks:
+                    paragraph = (
+                        doc.summary.extended_content
+                        if doc.summary.extended_content is not None
+                        else doc.summary
+                    )
+                    if mark.line != paragraph.start.line:
+                        yield GL11(docstring=doc, start=mark, end=mark.move(column=15))
+
+
 _CHECKS = OrderedDict(
-    GL08=GL08Check(),
+    GL08=GL08Check(),  # Terminates if fails
     GL01=GL01Check(),
     GL02=GL02Check(),
     GL03=GL03Check(),
     GL04=GL04Check(),
     GL06=GL06Check(),
     GL07=GL07Check(),
+    GL09=GL09Check(),
+    GL11=GL11Check(),
 )
 
 
@@ -354,11 +441,12 @@ class DetailedErrorFormatter(ErrorFormatter):
             underline_len = error.end.column - error.start.column
             if underline_len == 0:
                 underline_len = 1
-            underline = line_pad + ("^" * underline_len) + "\n"
+            underline = line_pad + ("^" * underline_len)
             if error.suggestion:
                 line_mark = line_pad + (" " * (underline_len - 1)) + "|\n"
                 suggestion = (
-                    line_mark
+                    "\n"
+                    + line_mark
                     + line_pad
                     + (" " * (underline_len - 1))
                     + error.suggestion

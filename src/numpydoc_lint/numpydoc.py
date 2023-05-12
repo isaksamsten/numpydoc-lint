@@ -6,6 +6,8 @@ import parso
 
 from dataclasses import dataclass
 
+SUMMARY_SIGNATURE_PATTERN = re.compile(r"^([\w., ]+=)?\s*[\w\.]+\(.*\)$")
+
 
 def strip_blank_lines(l):
     """Remove leading and trailing blank lines from a list of lines."""
@@ -82,18 +84,18 @@ class Reader:
 
         return self.read_to_condition(is_unindented)
 
-    def strip(self, doc):
-        i = 0
-        j = 0
-        for i, line in enumerate(doc):
-            if line.strip():
-                break
-
-        for j, line in enumerate(doc[::-1]):
-            if line.strip():
-                break
-
-        return doc[i : len(doc) - j]
+    # def strip(self, doc):
+    #     i = 0
+    #     j = 0
+    #     for i, line in enumerate(doc):
+    #         if line.strip():
+    #             break
+    #
+    #     for j, line in enumerate(doc[::-1]):
+    #         if line.strip():
+    #             break
+    #
+    #     return doc[i : len(doc) - j]
 
     def is_at_section(self):
         self.seek_next_non_empty_line()
@@ -136,6 +138,20 @@ class Reader:
         return not "".join(self._str).strip()
 
 
+def strip_empty_lines(contents):
+    i = 0
+    j = 0
+    for i, line in enumerate(contents):
+        if line.strip():
+            break
+
+    for j, line in enumerate(contents[::-1]):
+        if line.strip():
+            break
+
+    return contents[i : len(contents) - j]
+
+
 class ParseError(Exception):
     def __str__(self):
         message = self.args[0]
@@ -163,6 +179,9 @@ class Pos:
             self.column + column if column is not None else self.column,
         )
 
+    def move(self, *, line=0, column=0):
+        return Pos(self.line + line, self.column + column)
+
     def normalize(self, relative: "Pos"):
         return Pos(
             line=self.line - relative.line,
@@ -170,13 +189,15 @@ class Pos:
         )
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class Section:
+    start_header: Pos
+    end_header: Pos
     name: str
-    line: str
     valid_heading: bool
-    start: Pos
-    end: Pos
+    contents: list[str]
+    start_contents: Pos
+    end_contents: Pos
 
     def __eq__(self, other) -> bool:
         if isinstance(other, str):
@@ -186,6 +207,19 @@ class Section:
 
     def __hash__(self):
         return hash(self.name)
+
+
+@dataclass(frozen=True, kw_only=True)
+class Paragraph:
+    start: Pos
+    end: Pos
+    contents: list[str]
+
+
+@dataclass(frozen=True, kw_only=True)
+class Summary:
+    content: Paragraph
+    extended_content: Paragraph
 
 
 _PYTHON_VERSION = "{}.{}.{}".format(*sys.version_info)
@@ -223,7 +257,9 @@ class Docstring(metaclass=ABCMeta):
 
         self._docstring = None
         self._docstring_lines = None
-        self._section_titles = None
+        self._sections = None
+        self._summary = None
+        self._extended_summary = None
 
     def get_doc_node(self):
         if self.node.type == "file_input":
@@ -254,17 +290,53 @@ class Docstring(metaclass=ABCMeta):
     def type(self):
         pass
 
-    # @property
-    # def docstring(self) -> NumpyDocString:
-    #     """The docstring property."""
-    #     if self.has_docstring and self._docstring is None:
-    #         self._docstring = NumpyDocString(self.raw_docstring)
-    #     return self._docstring
+    @property
+    def extended_summary(self):
+        self.summary
+        return self._extended_summary
 
     @property
-    def section_titles(self) -> list[Section]:
-        if self._section_titles is None:
-            self._section_titles = []
+    def summary(self) -> Summary:
+        if self._summary is None:
+            reader = self._reader
+            reader.reset()
+            if reader.is_at_section():
+                self._summary = None
+            else:
+                start = self.start.move_line(line=reader._l)
+                while True:
+                    content = reader.read_to_next_empty_line()
+                    summary_str = " ".join([s.strip() for s in content]).strip()
+                    if SUMMARY_SIGNATURE_PATTERN.match(summary_str):
+                        if not reader.is_at_section():
+                            continue
+                    else:
+                        break
+                content = Paragraph(
+                    start=start, end=self.start.move(line=reader._l), contents=content
+                )
+                if not reader.is_at_section():
+                    start = self.start.move(line=reader._l)
+                    extended_content = reader.read_to_next_section()
+                    extended_content = Paragraph(
+                        start=start,
+                        end=self.start.move(line=reader._l),
+                        contents=extended_content,
+                    )
+                else:
+                    extended_content = None
+
+                self.start.move_line(line=reader._l)
+                self._summary = Summary(
+                    content=content, extended_content=extended_content
+                )
+
+        return self._summary
+
+    @property
+    def sections(self) -> list[Section]:
+        if self._sections is None:
+            self._sections = []
             self._reader.reset()
             while not self._reader.eof():
                 line = self._reader._l
@@ -276,19 +348,30 @@ class Docstring(metaclass=ABCMeta):
                     underline = data[1].strip()
                     if len(name) == len(underline):
                         valid_heading = re.match(r"^-*$", data[1]) is not None
-                        self._section_titles.append(
+                        self._sections.append(
                             Section(
-                                name,
-                                data[0],
-                                valid_heading,
-                                self.start.move_line(line=line, column=column),
-                                self.start.move_line(
+                                name=name,
+                                valid_heading=valid_heading,
+                                start_header=self.start.move_line(
+                                    line=line, column=column
+                                ),
+                                end_header=self.start.move_line(
                                     line=line, column=column + len(name)
                                 ),
+                                contents=strip_empty_lines(data[:2]),
+                                start_contents=self.start.move_line(line=line),
+                                end_contents=self.start.move_line(line=len(data) - 2),
                             )
                         )
 
-        return self._section_titles
+        return self._sections
+
+    def get_section(self, name) -> Optional[Section]:
+        for section in self.sections:
+            if section.name == name:
+                return section
+
+        return None
 
     @property
     def raw_docstring(self) -> str:
