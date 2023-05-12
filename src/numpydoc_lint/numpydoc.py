@@ -179,8 +179,21 @@ class Pos:
             self.column + column if column is not None else self.column,
         )
 
-    def move(self, *, line=0, column=0):
-        return Pos(self.line + line, self.column + column)
+    def move(self, *, line=None, column=None, absolute_line=None, absolute_column=None):
+        if line is not None:
+            line = self.line + line
+        elif absolute_line is not None:
+            line = absolute_line
+        else:
+            line = self.line
+
+        if column is not None:
+            column = self.column + column
+        elif absolute_column is not None:
+            column = absolute_column
+        else:
+            column = self.column
+        return Pos(line, column)
 
     def normalize(self, relative: "Pos"):
         return Pos(
@@ -213,7 +226,7 @@ class Section:
 class Paragraph:
     start: Pos
     end: Pos
-    contents: list[str]
+    data: list[str]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -235,10 +248,8 @@ def format_raw_doc(doc: str):
         first_delim = first_r
         first_delim_len = 4
     return (
-        (" " * first_delim_len)
-        + doc[:first_delim]
-        + doc[first_delim + first_delim_len : last_delim - 2]
-        + "   "
+        first_delim,
+        doc[:first_delim] + doc[first_delim + first_delim_len : last_delim - 2],
     )
 
 
@@ -246,10 +257,11 @@ class Docstring(metaclass=ABCMeta):
     def __init__(self, node):
         self.node = node
         self._doc_node = self.get_doc_node()
-        self._raw_docstring = (
+
+        self.indent, self._raw_docstring = (
             format_raw_doc(self._doc_node.get_code())
             if self._doc_node is not None
-            else None
+            else (None, None)
         )
         self._reader = (
             Reader(self._raw_docstring) if self._raw_docstring is not None else None
@@ -313,7 +325,7 @@ class Docstring(metaclass=ABCMeta):
                     else:
                         break
                 content = Paragraph(
-                    start=start, end=self.start.move(line=reader._l), contents=content
+                    start=start, end=self.start.move(line=reader._l), data=content
                 )
                 if not reader.is_at_section():
                     start = self.start.move(line=reader._l)
@@ -321,7 +333,7 @@ class Docstring(metaclass=ABCMeta):
                     extended_content = Paragraph(
                         start=start,
                         end=self.start.move(line=reader._l),
-                        contents=extended_content,
+                        data=extended_content,
                     )
                 else:
                     extended_content = None
@@ -341,6 +353,10 @@ class Docstring(metaclass=ABCMeta):
             while not self._reader.eof():
                 line = self._reader._l
                 data = self._reader.read_to_next_section()
+                if not data:
+                    self._sections = []
+                    break
+
                 column = len(data[0]) - len(data[0].lstrip())
 
                 if len(data) > 1:

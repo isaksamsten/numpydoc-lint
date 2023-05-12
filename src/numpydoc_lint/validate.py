@@ -108,6 +108,35 @@ class Error:
         return False
 
 
+class SimpleError(Error):
+    def __init__(
+        self,
+        *,
+        docstring: Docstring,
+        start: Pos = None,
+        end: Pos = None,
+        code: str = None,
+        message: str = None,
+        suggestion: str = None,
+    ) -> None:
+        super().__init__(docstring=docstring, start=start, end=end)
+        self._code = code
+        self._message = message
+        self._suggestion = suggestion
+
+    @property
+    def code(self):
+        return self._code
+
+    @property
+    def message(self):
+        return self._message
+
+    @property
+    def suggestion(self):
+        return self._suggestion
+
+
 class GL08(Error):
     @property
     def message(self) -> str:
@@ -196,6 +225,16 @@ class GL09(Error):
     @property
     def suggestion(self):
         return f"Move deprecation warning to line {self.first.line}"
+
+
+class GL10(Error):
+    @property
+    def message(self):
+        return "reST directives must be followed by two colon."
+
+    @property
+    def suggestion(self):
+        return "Fix the directive by inserting `::`"
 
 
 class GL11(Error):
@@ -317,7 +356,7 @@ class GL07Check(Check):
 
 def find_deprectated(paragraph: Paragraph):
     if paragraph:
-        for i, line in enumerate(paragraph.contents):
+        for i, line in enumerate(paragraph.data):
             if ".. deprecated:: " in line:
                 yield paragraph.start.move(line=i)
 
@@ -367,6 +406,90 @@ class GL11Check(Check):
                         yield GL11(docstring=doc, start=mark, end=mark.move(column=15))
 
 
+DIRECTIVES = ["versionadded", "versionchanged", "deprecated"]
+DIRECTIVE_PATTERN = re.compile(
+    r"^\s*\.\. ({})(?!::)".format("|".join(DIRECTIVES)), re.I | re.M
+)
+
+
+class GL10Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        for i, line in enumerate(doc.docstring_lines):
+            match = re.match(DIRECTIVE_PATTERN, line)
+            if match:
+                yield GL10(
+                    docstring=doc,
+                    start=doc.start.move(line=i, absolute_column=match.start(1)),
+                    end=doc.start.move(line=i, absolute_column=match.end(1) + 1),
+                )
+
+
+class SS01Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        if not doc.summary.content.data:
+            yield SimpleError(
+                docstring=doc,
+                code="SS01",
+                message="No summary found.",
+                suggestion="Add a short summary in a single line",
+            )
+
+
+class SS02Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        data = doc.summary.content.data
+        if data:
+            first_line = data[0].strip()
+            if first_line[0].isalpha() and not first_line[0].isupper():
+                yield SimpleError(
+                    docstring=doc,
+                    start=doc.summary.content.start,
+                    code="SS02",
+                    message="Summary does not start with a capital letter",
+                    suggestion=(
+                        f"Replace `{first_line[0]}` with `{first_line[0].upper()}`"
+                    ),
+                )
+
+
+class SS03Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        data = doc.summary.content.data
+        if data:
+            if data[0][-1] != ".":
+                yield SimpleError(
+                    docstring=doc,
+                    start=doc.summary.content.start,
+                    end=doc.summary.content.start.move(
+                        absolute_column=len(data[0]) + 1
+                    ),
+                    code="SS03",
+                    message="Summary does not end with a period.",
+                    suggestion="Insert a period.",
+                )
+
+
+class SS04Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        data = doc.summary.content.data
+        if data:
+            indent = doc.indent
+            first_line_indent = len(data[0]) - len(data[0].lstrip())
+            if first_line_indent != indent:
+                yield SimpleError(
+                    docstring=doc,
+                    start=doc.summary.content.start.move(
+                        absolute_column=indent,
+                    ),
+                    end=doc.summary.content.start.move(
+                        absolute_column=first_line_indent
+                    ),
+                    code="SS04",
+                    message="Summary contains heading whitespaces.",
+                    suggestion="Remove leading whitespace.",
+                )
+
+
 _CHECKS = OrderedDict(
     GL08=GL08Check(),  # Terminates if fails
     GL01=GL01Check(),
@@ -376,7 +499,12 @@ _CHECKS = OrderedDict(
     GL06=GL06Check(),
     GL07=GL07Check(),
     GL09=GL09Check(),
+    GL10=GL10Check(),
     GL11=GL11Check(),
+    SS01=SS01Check(),
+    SS02=SS02Check(),
+    SS03=SS03Check(),
+    SS04=SS04Check(),
 )
 
 
@@ -430,9 +558,15 @@ class DetailedErrorFormatter(ErrorFormatter):
             offending_lines = []
 
             for i in range(max(0, error_start.line - 2), error_start.line + 1):
+                if i == 0 and re.match("^\s*$", docstring.docstring_lines[i]):
+                    continue
+
                 offending_lines.append(
                     "{} | {}\n".format(
-                        docstring.start.line + i, docstring.docstring_lines[i]
+                        docstring.start.line + i,
+                        docstring.docstring_lines[i],
+                        # if i > 0
+                        # else (" " * docstring.start.column) + '"""',  # FIXME!
                     )
                 )
             offending_line = "".join(offending_lines)

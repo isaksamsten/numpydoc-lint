@@ -1,9 +1,7 @@
 """Test."""
 
 MY_CONST = "hello world"
-r"""TEST.{MY_CONST}
-
-"""
+r"""TEST.{MY_CONST} """
 
 
 #
@@ -39,6 +37,8 @@ class Test:
         ------
         test.
 
+        .. versionadded 10
+
 
         Examples
         --------
@@ -58,3 +58,34 @@ class Test:
 
         """
         pass
+
+
+def no_summary():
+    """"""
+    pass
+
+
+class NoSummary:
+    """"""
+
+    def no_summary(self):
+        """"""
+
+
+class NotCapitalNoPeriod:
+    """a great summary"""
+
+    def no_capital(self):
+        """
+        not capital no period
+
+        An exteded
+        """
+
+class HeadingWhiteSpaces():
+    """
+       Test
+    """
+
+    def __init__(self):
+        """ Test."""
