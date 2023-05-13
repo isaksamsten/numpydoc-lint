@@ -73,19 +73,30 @@ class NoSummary:
 
 
 class NotCapitalNoPeriod:
-    """a great summary"""
+    """a great summary."""
 
     def no_capital(self):
         """
-        not capital no period
+        not capital no period.
 
         An exteded
         """
 
-class HeadingWhiteSpaces():
-    """
-       Test
-    """
+
+class HeadingWhiteSpaces:
+    """Test."""
 
     def __init__(self):
-        """ Test."""
+        """Test."""
+
+
+def genitive_s():
+    """Returns the longest string."""
+
+
+class GenitiveS:
+    """Represents a class."""
+
+    def genitive_s(self):
+        """Represents a method."""
+        pass

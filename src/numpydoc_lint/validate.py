@@ -490,6 +490,26 @@ class SS04Check(Check):
                 )
 
 
+class SS05Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        data = doc.summary.content.data
+        if doc.type in ["function", "method"] and data:
+            match = re.match(r"^\s*(.*?)\s+", data[0])
+            if match:
+                word = match.group(1).strip()
+                if word != "" and word[-1] == "s":
+                    yield SimpleError(
+                        docstring=doc,
+                        start=doc.start.move(absolute_column=match.start(1)),
+                        end=doc.start.move(absolute_column=match.end(1)),
+                        message=(
+                            "Summary must start with infinitive verb, not third person."
+                        ),
+                        suggestion="Remove third person `s`",
+                        code="SS05",
+                    )
+
+
 _CHECKS = OrderedDict(
     GL08=GL08Check(),  # Terminates if fails
     GL01=GL01Check(),
@@ -505,6 +525,7 @@ _CHECKS = OrderedDict(
     SS02=SS02Check(),
     SS03=SS03Check(),
     SS04=SS04Check(),
+    SS05=SS05Check(),
 )
 
 
