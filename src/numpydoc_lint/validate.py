@@ -3,7 +3,7 @@ import io
 import itertools
 from .numpydoc import Docstring, Pos, Section, Paragraph
 from typing import Optional, Generator, Iterable, Mapping
-from abc import ABCMeta, abstractmethod, abstractproperty
+from abc import ABCMeta, abstractmethod
 from collections import OrderedDict, defaultdict
 
 _ALLOWED_SECTIONS = [
@@ -24,75 +24,36 @@ _ALLOWED_SECTIONS = [
 
 
 class Error:
-    """
-    Error dataclass.
-
-    Parameters
-    ----------
-    start_pos : Pos
-        The start position.
-    end_pos : Pos
-        The end position.
-    """
-
     def __init__(
         self,
         *,
         docstring: Docstring,
         start: Pos = None,
         end: Pos = None,
+        code: str = None,
+        message: str = None,
+        suggestion: str = None,
+        terminate: str = False,
     ) -> None:
-        self.start = start if start is not None else docstring.start
-        self.end = end if end is not None else self.start
         self.docstring = docstring
-
-    @abstractproperty
-    def code(self) -> str:
-        """
-        Error code.
-
-        Returns
-        -------
-        str
-            The error code. By default ``self.___class__.__name__``.
-        """
-        return self.__class__.__name__.upper()
-
-    @abstractproperty
-    def message(self) -> str:
-        """
-        Message.
-
-        Returns
-        -------
-        str
-            The message.
-        """
-        pass
+        self.start = start if start is not None else docstring.start
+        self.end = end if end is not None else docstring.end
+        self._code = code
+        self._message = message
+        self._suggestion = suggestion
+        self._terminate = terminate
 
     @property
-    def details(self) -> Optional[str]:
-        """
-        Details on the error.
-
-        Returns
-        -------
-        Optional[str]
-            The details.
-        """
-        return None
+    def code(self):
+        return self._code if self._code is not None else self.__class__.__name__.upper()
 
     @property
-    def suggestion(self) -> str:
-        """
-        A suggestion.
+    def message(self):
+        return self._message
 
-        Returns
-        -------
-        str
-            The suggestion to fix the error.
-        """
-        return None
+    @property
+    def suggestion(self):
+        return self._suggestion
 
     @property
     def terminate(self) -> bool:
@@ -105,146 +66,7 @@ class Error:
             ``True`` if the remaining checks should be skipped; ``False``
             otherwise.
         """
-        return False
-
-
-class SimpleError(Error):
-    def __init__(
-        self,
-        *,
-        docstring: Docstring,
-        start: Pos = None,
-        end: Pos = None,
-        code: str = None,
-        message: str = None,
-        suggestion: str = None,
-    ) -> None:
-        super().__init__(docstring=docstring, start=start, end=end)
-        self._code = code
-        self._message = message
-        self._suggestion = suggestion
-
-    @property
-    def code(self):
-        return self._code
-
-    @property
-    def message(self):
-        return self._message
-
-    @property
-    def suggestion(self):
-        return self._suggestion
-
-
-class GL08(Error):
-    @property
-    def message(self) -> str:
-        return f"The {self.docstring.type} does not have a docstring"
-
-    @property
-    def terminate(self) -> bool:
-        return True
-
-
-class GL01(Error):
-    @property
-    def message(self):
-        return "Docstring should start on a new line."
-
-
-class GL02(Error):
-    @property
-    def message(self):
-        return "Docstring should end one line before the closing quotes."
-
-    @property
-    def suggestion(self):
-        return "Remove empty line"
-
-
-class GL03(Error):
-    @property
-    def message(self):
-        return "Docstring should not contain double line breaks."
-
-
-class GL04(Error):
-    @property
-    def message(self):
-        return "Docstring line should not start with tabs."
-
-
-class GL06(Error):
-    def __init__(self, *, docstring: Docstring, section: Section):
-        super().__init__(
-            start=section.start_header, end=section.end_header, docstring=docstring
-        )
-        self.section = section
-
-    @property
-    def message(self):
-        return "Docstring contains unexpected section)."
-
-    @property
-    def suggestion(self):
-        return "Remove section or fix spelling."
-
-
-class GL07(Error):
-    def __init__(
-        self, docstring: Docstring, expected_section: str, actual_section: Section
-    ) -> None:
-        super().__init__(
-            docstring=docstring,
-            start=actual_section.start_header,
-            end=actual_section.end_header,
-        )
-        self.expected_section = expected_section
-
-    @property
-    def message(self):
-        return "Sections are in the wrong order."
-
-    @property
-    def suggestion(self):
-        return f"Section should be `{self.expected_section}`."
-
-
-class GL09(Error):
-    def __init__(
-        self, *, docstring: Docstring, start: Pos, end: Pos, first: Pos
-    ) -> None:
-        super().__init__(docstring=docstring, start=start, end=end)
-        self.first = first
-
-    @property
-    def message(self):
-        return "Deprecation warning should precede extended summary."
-
-    @property
-    def suggestion(self):
-        return f"Move deprecation warning to line {self.first.line}"
-
-
-class GL10(Error):
-    @property
-    def message(self):
-        return "reST directives must be followed by two colon."
-
-    @property
-    def suggestion(self):
-        return "Fix the directive by inserting `::`"
-
-
-class GL11(Error):
-    @property
-    def message(self):
-        return "Summary should only contain a single deprecation warning."
-
-    @property
-    def suggestion(self):
-        return "Remove duplicate deprecation warning."
+        return self._terminate
 
 
 def empty_prefix_lines(doc: Docstring):
@@ -291,7 +113,14 @@ class GL08Check(Check):
 
     def validate(self, doc: Docstring) -> Optional[Error]:
         if not doc.has_docstring:
-            yield GL08(start=doc.start, end=doc.end, docstring=doc)
+            yield Error(
+                start=doc.start,
+                end=doc.end,
+                docstring=doc,
+                code="GL08",
+                message=f"The {type} does not have a docstring",
+                terminate=True,
+            )
 
 
 class GL01Check(Check):
@@ -299,13 +128,25 @@ class GL01Check(Check):
 
     def validate(self, doc: Docstring) -> Optional[Error]:
         if empty_prefix_lines(doc) != 1 and "\n" in doc.raw_docstring:
-            yield GL01(start=doc.start, docstring=doc)
+            yield Error(
+                docstring=doc,
+                start=doc.start,
+                code="GL01",
+                message="Docstring should start on a new line.",
+            )
 
 
+# TODO: Incorrectly flagged if docstring start on the same line as """.
 class GL02Check(Check):
     def validate(self, doc: Docstring) -> Optional[Error]:
         if empty_suffix_lines(doc) != 1 and "\n" in doc.raw_docstring:
-            yield GL02(start=doc.end.move_line(line=-1), docstring=doc)
+            yield Error(
+                start=doc.end.move_line(line=-1),
+                docstring=doc,
+                code="GL02",
+                message="Docstring should end one line before the closing quotes.",
+                suggestion="Remove empty line.",
+            )
 
 
 class GL03Check(Check):
@@ -313,7 +154,12 @@ class GL03Check(Check):
         prev = True
         for i, row in enumerate(doc.docstring_lines):
             if not prev and not row.strip() and i < len(doc.docstring_lines) - 1:
-                yield GL03(start=doc.start.move_line(line=i), docstring=doc)
+                yield Error(
+                    start=doc.start.move_line(line=i),
+                    docstring=doc,
+                    code="GL03",
+                    message="Docstring should not contain double line breaks.",
+                )
             prev = row.strip()
         return None
 
@@ -323,18 +169,35 @@ class GL04Check(Check):
         for i, line in enumerate(doc.docstring_lines):
             first = next(re.finditer("^\s*(\t)", line), None)
             if first:
-                yield GL04(
+                yield Error(
                     start=doc.start.move_line(line=i, column=first.start(0)),
                     end=doc.start.move_line(line=i, column=first.end(0)),
                     docstring=doc,
+                    code="GL04",
+                    message="Docstring line should not start with tabs.",
                 )
+
+
+class GL06(Error):
+    def __init__(self, *, docstring: Docstring, section: Section):
+        super().__init__(
+            start=section.start_header, end=section.end_header, docstring=docstring
+        )
+        self.section = section
 
 
 class GL06Check(Check):
     def validate(self, doc: Docstring) -> Optional[Error]:
         for section in doc.sections:
             if section.name not in _ALLOWED_SECTIONS:
-                yield GL06(docstring=doc, section=section)
+                yield Error(
+                    docstring=doc,
+                    start=section.start_header,
+                    end=section.end_header,
+                    code="GL06",
+                    message="Docstring contains unexpected section.",
+                    suggestion="Remove section or fix spelling.",
+                )
 
 
 class GL07Check(Check):
@@ -347,10 +210,13 @@ class GL07Check(Check):
         ]
         for expected_section, actual_section in zip(expected_sections, actual_sections):
             if expected_section != actual_section.name:
-                yield GL07(
+                yield Error(
                     docstring=doc,
-                    expected_section=expected_section,
-                    actual_section=actual_section,
+                    start=actual_section.start_header,
+                    end=actual_section.end_header,
+                    code="GL07",
+                    message="Sections are in the wrong order.",
+                    suggestion=f"Section should be `{expected_section}`",
                 )
 
 
@@ -359,6 +225,16 @@ def find_deprectated(paragraph: Paragraph):
         for i, line in enumerate(paragraph.data):
             if ".. deprecated:: " in line:
                 yield paragraph.start.move(line=i)
+
+
+class GL10(Error):
+    @property
+    def message(self):
+        return "reST directives must be followed by two colon."
+
+    @property
+    def suggestion(self):
+        return "Fix the directive by inserting `::`"
 
 
 class GL09Check(Check):
@@ -378,11 +254,15 @@ class GL09Check(Check):
                     else doc.summary
                 )
                 if deprecated_markers[0].line != paragraph.start.line:
-                    yield GL09(
+                    yield Error(
                         docstring=doc,
                         start=deprecated_markers[0],
                         end=deprecated_markers[0].move(column=15),
-                        first=paragraph.start,
+                        code="GL09",
+                        message="Deprecation warning should precede extended summary.",
+                        suggestion=(
+                            f"Move deprecation warning to line {paragraph.start.line}"
+                        ),
                     )
 
 
@@ -396,14 +276,37 @@ class GL11Check(Check):
                 )
             )
             if len(marks) > 1:
-                for mark in marks:
-                    paragraph = (
-                        doc.summary.extended_content
-                        if doc.summary.extended_content is not None
-                        else doc.summary
+                paragraph = (
+                    doc.summary.extended_content
+                    if doc.summary.extended_content is not None
+                    else doc.summary
+                )
+                offenders = [
+                    mark for mark in marks if mark.line != paragraph.start.line
+                ]
+                # TODO: improve suggestion if there is no correct deprecation warning.
+                if len(offenders) == 1:
+                    where = f"line {offenders[0].line}"
+                else:
+                    offending_lines = ", ".join(
+                        str(offender.line) for offender in offenders[:-1]
                     )
-                    if mark.line != paragraph.start.line:
-                        yield GL11(docstring=doc, start=mark, end=mark.move(column=15))
+                    where = f"lines {offending_lines} and {offenders[-1].line}"
+
+                for mark in offenders:
+                    yield Error(
+                        docstring=doc,
+                        start=mark,
+                        end=mark.move(column=15),
+                        code="GL11",
+                        message=(
+                            "Summary should only contain a single deprecation "
+                            "warning."
+                        ),
+                        suggestion=(
+                            f"Remove duplicate deprecation warnings on {where}"
+                        ),
+                    )
 
 
 DIRECTIVES = ["versionadded", "versionchanged", "deprecated"]
@@ -427,7 +330,7 @@ class GL10Check(Check):
 class SS01Check(Check):
     def validate(self, doc: Docstring) -> Generator[Error, None, None]:
         if not doc.summary.content.data:
-            yield SimpleError(
+            yield Error(
                 docstring=doc,
                 code="SS01",
                 message="No summary found.",
@@ -441,7 +344,7 @@ class SS02Check(Check):
         if data:
             first_line = data[0].strip()
             if first_line[0].isalpha() and not first_line[0].isupper():
-                yield SimpleError(
+                yield Error(
                     docstring=doc,
                     start=doc.summary.content.start,
                     code="SS02",
@@ -457,7 +360,7 @@ class SS03Check(Check):
         data = doc.summary.content.data
         if data:
             if data[0][-1] != ".":
-                yield SimpleError(
+                yield Error(
                     docstring=doc,
                     start=doc.summary.content.start,
                     end=doc.summary.content.start.move(
@@ -476,7 +379,7 @@ class SS04Check(Check):
             indent = doc.indent
             first_line_indent = len(data[0]) - len(data[0].lstrip())
             if first_line_indent != indent:
-                yield SimpleError(
+                yield Error(
                     docstring=doc,
                     start=doc.summary.content.start.move(
                         absolute_column=indent,
@@ -498,7 +401,7 @@ class SS05Check(Check):
             if match:
                 word = match.group(1).strip()
                 if word != "" and word[-1] == "s":
-                    yield SimpleError(
+                    yield Error(
                         docstring=doc,
                         start=doc.start.move(absolute_column=match.start(1)),
                         end=doc.start.move(absolute_column=match.end(1)),
@@ -508,6 +411,29 @@ class SS05Check(Check):
                         suggestion="Remove third person `s`",
                         code="SS05",
                     )
+
+
+class SS06Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        data = doc.summary.content.data
+        if len(data) > 1:
+            yield Error(
+                docstring=doc,
+                start=doc.summary.content.start,
+                end=doc.summary.content.end,
+                code="SS06",
+                message="Summary should fit in a single line",
+            )
+
+
+class ES01Check(Check):
+    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+        if not doc.summary.extended_content.data:
+            yield Error(
+                docstring=doc,
+                code="ES01",
+                message="No extended summary found.",
+            )
 
 
 _CHECKS = OrderedDict(
@@ -526,6 +452,8 @@ _CHECKS = OrderedDict(
     SS03=SS03Check(),
     SS04=SS04Check(),
     SS05=SS05Check(),
+    SS06=SS06Check(),
+    ES01=ES01Check(),
 )
 
 
@@ -599,6 +527,7 @@ class DetailedErrorFormatter(ErrorFormatter):
             underline = line_pad + ("^" * underline_len)
             if error.suggestion:
                 line_mark = line_pad + (" " * (underline_len - 1)) + "|\n"
+                print(error.suggestion)
                 suggestion = (
                     "\n"
                     + line_mark

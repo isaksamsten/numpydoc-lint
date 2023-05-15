@@ -1,9 +1,8 @@
 import sys
 import re
-from typing import Iterable, Optional
+from typing import Optional, List
 from abc import ABCMeta, abstractproperty
 import parso
-
 from dataclasses import dataclass
 
 SUMMARY_SIGNATURE_PATTERN = re.compile(r"^([\w., ]+=)?\s*[\w\.]+\(.*\)$")
@@ -235,6 +234,24 @@ class Summary:
     extended_content: Paragraph
 
 
+@dataclass(frozen=True, kw_only=True)
+class Parameter:
+    start: Pos
+    end: Pos
+    name: str
+    default: str = None  # For future --fix
+    annotation: str = None
+    star_count: int
+
+    @property
+    def iskwargs(self):
+        return self.star_count == 2
+
+    @property
+    def isargs(self):
+        return self.star_count == 1
+
+
 _PYTHON_VERSION = "{}.{}.{}".format(*sys.version_info)
 
 
@@ -440,6 +457,20 @@ class ConstantDocstring(Docstring):
         return "constant"
 
 
+def _wrap_parameters(params: List[parso.python.tree.Param]):
+    return [
+        Parameter(
+            start=Pos(*param.start_pos),
+            end=Pos(*param.end_pos),
+            name=param.name.value,
+            default=param.default.value if param.default is not None else None,
+            annotation=param.annotation.value if param.annotation is not None else None,
+            star_count=param.star_count,
+        )
+        for param in params
+    ]
+
+
 class ClassDocstring(Docstring):
     @property
     def parameters(self):
@@ -449,7 +480,7 @@ class ClassDocstring(Docstring):
             if name.type == "name" and name.value == "__init__":
                 init = func
                 break
-        return init.get_params()[1:]  # exclude self
+        return _wrap_parameters(init.get_params()[1:])  # exclude self
 
     @property
     def attributes(self):
@@ -463,7 +494,7 @@ class ClassDocstring(Docstring):
 class FunctionDocstring(Docstring):
     @property
     def parameters(self):
-        return self.node.get_params()
+        return _wrap_parameters(self.node.get_params())
 
     @property
     def type(self):
@@ -519,15 +550,13 @@ class DocstringParser:
         """
         grammar = self._load_grammar()
         node = grammar.parse(code)
-        errors: Iterable[parso.normalizer.Issue] = grammar.iter_errors(node)
-        has_errors = False
-        for error in errors:
-            has_errors = True
-            if not self.print_errors:
-                return None
-            print(f"{error.start_pos}: {error.message}")
+        errors = [
+            f"{error.start_pos}: {error.message}" for error in grammar.iter_errors(node)
+        ]
+        if errors:
+            raise ValueError("\n".join(errors))
 
-        return None if has_errors else node
+        return node
 
     def iter_docstring(self, code: str):
         module = self._parse(code).get_root_node()

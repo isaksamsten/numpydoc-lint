@@ -1,4 +1,4 @@
-"""Test."""
+# """Test."""
 
 MY_CONST = "hello world"
 r"""TEST.{MY_CONST} """
@@ -10,12 +10,16 @@ r"""TEST.{MY_CONST} """
 #
 #
 class Test:
-    """TEST."""
+    """TEST this is a long wi
+    winding thing im writing.
+    please read me not.
+    """
 
     def __init__(self, test, *args, **kwargs):
         """
         Construct a new Test.
 
+        .. deprecated:: 1.0
         Lorem ipsum dolor sit amet, officia excepteur ex fugiat reprehenderit
         enim labore culpa sint ad nisi Lorem pariatur mollit ex esse
         exercitation amet. Nisi anim cupidatat excepteur officia. Reprehenderit
@@ -28,6 +32,7 @@ class Test:
         enim. Voluptate laboris sint cupidatat ullamco ut ea consectetur et est
         culpa et culpa duis.
 
+        .. deprecated:: 1.0
         Lorem ipsum dolor sit amet, qui minim labore adipisicing minim sint
         cillum sint consectetur cupidatat.
 
