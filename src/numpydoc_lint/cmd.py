@@ -1,7 +1,7 @@
 import sys
 from argparse import ArgumentParser, FileType
 
-from .numpydoc import DocstringParser
+from .numpydoc import Parser
 from .validate import Validator, ErrorFormatter, DetailedErrorFormatter
 
 _ERROR_FORMATTERS = {
@@ -21,7 +21,7 @@ def run() -> None:
     args = parser.parse_args()
 
     print(args)
-    docstring = DocstringParser(print_errors=args.print_errors)
+    docstring = Parser(print_errors=args.print_errors)
     error_formatter = _ERROR_FORMATTERS[args.format]()
     for input in args.input:
         code = input.read()

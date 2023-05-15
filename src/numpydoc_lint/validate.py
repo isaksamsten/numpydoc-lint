@@ -1,7 +1,7 @@
 import re
 import io
 import itertools
-from .numpydoc import Docstring, Pos, Section, Paragraph
+from .numpydoc import Node, Pos, Paragraph, DocString
 from typing import Optional, Generator, Iterable, Mapping
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict, defaultdict
@@ -27,7 +27,7 @@ class Error:
     def __init__(
         self,
         *,
-        docstring: Docstring,
+        docstring: Node,
         start: Pos = None,
         end: Pos = None,
         code: str = None,
@@ -69,21 +69,19 @@ class Error:
         return self._terminate
 
 
-def empty_prefix_lines(doc: Docstring):
+def empty_prefix_lines(doc: Node):
     i = None
-    if doc.has_docstring:
-        for i, row in enumerate(doc.docstring_lines):
-            if row.strip():
-                break
+    for i, row in enumerate(doc.docstring_lines):
+        if row.strip():
+            break
     return i
 
 
-def empty_suffix_lines(doc: Docstring):
+def empty_suffix_lines(doc: Node):
     i = None
-    if doc.has_docstring:
-        for i, row in enumerate(reversed(doc.docstring_lines)):
-            if row.strip():
-                break
+    for i, row in enumerate(reversed(doc.docstring_lines)):
+        if row.strip():
+            break
     return i
 
 
@@ -91,7 +89,7 @@ class Check(metaclass=ABCMeta):
     """Abstract docstring check."""
 
     @abstractmethod
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, doc: Node) -> Generator[Error, None, None]:
         """
         Ensure that the docstring is valid.
 
@@ -111,12 +109,12 @@ class Check(metaclass=ABCMeta):
 class GL08Check(Check):
     """Check that the class/function/module has a docstring."""
 
-    def validate(self, doc: Docstring) -> Optional[Error]:
-        if not doc.has_docstring:
+    def validate(self, node: Node) -> Optional[Error]:
+        if not node.has_docstring:
             yield Error(
-                start=doc.start,
-                end=doc.end,
-                docstring=doc,
+                start=node.start,
+                end=node.end,
+                docstring=None,
                 code="GL08",
                 message=f"The {type} does not have a docstring",
                 terminate=True,
@@ -126,8 +124,13 @@ class GL08Check(Check):
 class GL01Check(Check):
     """Check for too many/few empty prefix lines."""
 
-    def validate(self, doc: Docstring) -> Optional[Error]:
-        if empty_prefix_lines(doc) != 1 and "\n" in doc.raw_docstring:
+    def validate(self, node: Node) -> Optional[Error]:
+        doc = node.docstring
+        if (
+            node.has_docstring
+            and empty_prefix_lines(doc) != 1
+            and "\n" in doc.raw_docstring
+        ):
             yield Error(
                 docstring=doc,
                 start=doc.start,
@@ -138,7 +141,8 @@ class GL01Check(Check):
 
 # TODO: Incorrectly flagged if docstring start on the same line as """.
 class GL02Check(Check):
-    def validate(self, doc: Docstring) -> Optional[Error]:
+    def validate(self, node: Node) -> Optional[Error]:
+        doc = node.docstring
         if empty_suffix_lines(doc) != 1 and "\n" in doc.raw_docstring:
             yield Error(
                 start=doc.end.move_line(line=-1),
@@ -150,7 +154,8 @@ class GL02Check(Check):
 
 
 class GL03Check(Check):
-    def validate(self, doc: Docstring) -> Optional[Error]:
+    def validate(self, node: Node) -> Optional[Error]:
+        doc = node.docstring
         prev = True
         for i, row in enumerate(doc.docstring_lines):
             if not prev and not row.strip() and i < len(doc.docstring_lines) - 1:
@@ -165,7 +170,8 @@ class GL03Check(Check):
 
 
 class GL04Check(Check):
-    def validate(self, doc: Docstring) -> Optional[Error]:
+    def validate(self, node: Node) -> Optional[Error]:
+        doc = node.docstring
         for i, line in enumerate(doc.docstring_lines):
             first = next(re.finditer("^\s*(\t)", line), None)
             if first:
@@ -178,16 +184,9 @@ class GL04Check(Check):
                 )
 
 
-class GL06(Error):
-    def __init__(self, *, docstring: Docstring, section: Section):
-        super().__init__(
-            start=section.start_header, end=section.end_header, docstring=docstring
-        )
-        self.section = section
-
-
 class GL06Check(Check):
-    def validate(self, doc: Docstring) -> Optional[Error]:
+    def validate(self, node: Node) -> Optional[Error]:
+        doc = node.docstring
         for section in doc.sections:
             if section.name not in _ALLOWED_SECTIONS:
                 yield Error(
@@ -201,7 +200,8 @@ class GL06Check(Check):
 
 
 class GL07Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         expected_sections = [
             section for section in _ALLOWED_SECTIONS if section in doc.sections
         ]
@@ -238,7 +238,8 @@ class GL10(Error):
 
 
 class GL09Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         if doc.summary:
             deprecated_markers = list(
                 itertools.chain(
@@ -267,7 +268,8 @@ class GL09Check(Check):
 
 
 class GL11Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         if doc.summary:
             marks = list(
                 itertools.chain(
@@ -316,7 +318,8 @@ DIRECTIVE_PATTERN = re.compile(
 
 
 class GL10Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         for i, line in enumerate(doc.docstring_lines):
             match = re.match(DIRECTIVE_PATTERN, line)
             if match:
@@ -328,7 +331,8 @@ class GL10Check(Check):
 
 
 class SS01Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         if not doc.summary.content.data:
             yield Error(
                 docstring=doc,
@@ -339,7 +343,8 @@ class SS01Check(Check):
 
 
 class SS02Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         data = doc.summary.content.data
         if data:
             first_line = data[0].strip()
@@ -356,7 +361,8 @@ class SS02Check(Check):
 
 
 class SS03Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         data = doc.summary.content.data
         if data:
             if data[0][-1] != ".":
@@ -373,7 +379,8 @@ class SS03Check(Check):
 
 
 class SS04Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         data = doc.summary.content.data
         if data:
             indent = doc.indent
@@ -394,9 +401,10 @@ class SS04Check(Check):
 
 
 class SS05Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc = node.docstring
         data = doc.summary.content.data
-        if doc.type in ["function", "method"] and data:
+        if node.type in ["function", "method"] and data:
             match = re.match(r"^\s*(.*?)\s+", data[0])
             if match:
                 word = match.group(1).strip()
@@ -414,20 +422,21 @@ class SS05Check(Check):
 
 
 class SS06Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
-        data = doc.summary.content.data
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        data = node.docstring.summary.content.data
         if len(data) > 1:
             yield Error(
-                docstring=doc,
-                start=doc.summary.content.start,
-                end=doc.summary.content.end,
+                docstring=node.docstring,
+                start=node.docstring.summary.content.start,
+                end=node.docstring.summary.content.end,
                 code="SS06",
                 message="Summary should fit in a single line",
             )
 
 
 class ES01Check(Check):
-    def validate(self, doc: Docstring) -> Generator[Error, None, None]:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        doc: DocString = node._docstring
         if not doc.summary.extended_content.data:
             yield Error(
                 docstring=doc,
@@ -458,7 +467,7 @@ _CHECKS = OrderedDict(
 
 
 class Validator:
-    def __init__(self, docstring: Docstring, ignore: list = None) -> None:
+    def __init__(self, docstring: Node, ignore: list = None) -> None:
         self.docstring = docstring
         self.ignore = ignore if ignore is not None else []
         self.checks = [

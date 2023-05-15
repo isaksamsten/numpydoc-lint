@@ -270,54 +270,40 @@ def format_raw_doc(doc: str):
     )
 
 
-class Docstring(metaclass=ABCMeta):
-    def __init__(self, node):
-        self.node = node
-        self._doc_node = self.get_doc_node()
+def _get_docstring_node(node):
+    if node.type == "file_input":
+        node = node.children[0]
+    elif node.type in ("funcdef", "classdef"):
+        node = node.children[node.children.index(":") + 1]
+        if node.type == "suite":  # Normally a suite
+            node = node.children[1]  # -> NEWLINE stmt
+    else:  # ExprStmt
+        simple_stmt = node.parent
+        simple_stmt = simple_stmt.get_next_sibling()
+        if simple_stmt.start_pos[0] == node.start_pos[0] + 1:
+            node = simple_stmt
+        else:
+            return None
 
-        self.indent, self._raw_docstring = (
-            format_raw_doc(self._doc_node.get_code())
-            if self._doc_node is not None
-            else (None, None)
-        )
-        self._reader = (
-            Reader(self._raw_docstring) if self._raw_docstring is not None else None
-        )
+    if node.type == "simple_stmt":
+        node = node.children[0]
+    if node.type == "string":
+        return node
+    return None
 
-        self._docstring = None
+
+class DocString:
+    def __init__(self, node=parso.python.tree.Node) -> None:
+        self._node = node
+        self._start = Pos(*node.start_pos)
+        self._end = Pos(*node.end_pos)
+        self._indent, self._raw_docstring = format_raw_doc(node.get_code())
+        self._reader = Reader(self._raw_docstring)
+
         self._docstring_lines = None
         self._sections = None
         self._summary = None
         self._extended_summary = None
-
-    def get_doc_node(self):
-        if self.node.type == "file_input":
-            node = self.node.children[0]
-        elif self.node.type in ("funcdef", "classdef"):
-            node = self.node.children[self.node.children.index(":") + 1]
-            if node.type == "suite":  # Normally a suite
-                node = node.children[1]  # -> NEWLINE stmt
-        else:  # ExprStmt
-            simple_stmt = self.node.parent
-            simple_stmt = simple_stmt.get_next_sibling()
-            if simple_stmt.start_pos[0] == self.node.start_pos[0] + 1:
-                node = simple_stmt
-            else:
-                return None
-
-        if node.type == "simple_stmt":
-            node = node.children[0]
-        if node.type == "string":
-            return node
-        return None
-
-    @property
-    def has_docstring(self):
-        return self.raw_docstring is not None
-
-    @abstractproperty
-    def type(self):
-        pass
 
     @property
     def extended_summary(self):
@@ -412,32 +398,58 @@ class Docstring(metaclass=ABCMeta):
 
     @property
     def docstring_lines(self) -> list[str]:
-        if self.has_docstring and self._docstring_lines is None:
+        if self._docstring_lines is None:
             self._docstring_lines = self.raw_docstring.split("\n")
         return self._docstring_lines
 
     @property
+    def indent(self) -> int:
+        return self._indent
+
+    @property
     def start(self) -> Pos:
-        if self.has_docstring:
-            line, column = self._doc_node.start_pos
-        else:
-            line, column = self.node.start_pos
-        return Pos(line, column)
+        return self._start
 
     @property
     def end(self) -> Pos:
-        if self.has_docstring:
-            line, column = self._doc_node.end_pos
+        return self._end
+
+
+class Node(metaclass=ABCMeta):
+    def __init__(self, node):
+        self.node = node
+        docstring_node = _get_docstring_node(self.node)
+        if docstring_node is not None:
+            self._docstring = DocString(docstring_node)
         else:
-            line, column = self.node.end_pos
-        return Pos(line, column)
+            self._docstring = None
+
+    @property
+    def has_docstring(self):
+        return self._docstring is not None
+
+    @property
+    def docstring(self):
+        return self._docstring
+
+    @abstractproperty
+    def type(self):
+        pass
 
     @property
     def name(self):
         return self.node.name.value
 
+    @property
+    def start(self):
+        return Pos(*self.node.start_pos)
 
-class ModuleDocstring(Docstring):
+    @property
+    def end(self):
+        return Pos(*self.node.end_pos)
+
+
+class Module(Node):
     @property
     def name(self):
         return None
@@ -447,7 +459,7 @@ class ModuleDocstring(Docstring):
         return "module"
 
 
-class ConstantDocstring(Docstring):
+class Constant(Node):
     @property
     def name(self):
         return self.node.children[0].value
@@ -471,7 +483,7 @@ def _wrap_parameters(params: List[parso.python.tree.Param]):
     ]
 
 
-class ClassDocstring(Docstring):
+class Class(Node):
     @property
     def parameters(self):
         init = None
@@ -491,7 +503,7 @@ class ClassDocstring(Docstring):
         return "class"
 
 
-class FunctionDocstring(Docstring):
+class FunctionDocstring(Node):
     @property
     def parameters(self):
         return _wrap_parameters(self.node.get_params())
@@ -501,7 +513,7 @@ class FunctionDocstring(Docstring):
         return "function"
 
 
-class MethodDocstring(FunctionDocstring):
+class Method(FunctionDocstring):
     @property
     def parameters(self):
         return self.node.get_params()[1:]  # exclude self
@@ -511,7 +523,7 @@ class MethodDocstring(FunctionDocstring):
         return "method"
 
 
-class DocstringParser:
+class Parser:
     """[TODO:description].
 
     Attributes
@@ -560,15 +572,15 @@ class DocstringParser:
 
     def iter_docstring(self, code: str):
         module = self._parse(code).get_root_node()
-        yield ModuleDocstring(module)
+        yield Module(module)
 
         for const in module._search_in_scope("expr_stmt"):
-            yield ConstantDocstring(const)
+            yield Constant(const)
 
         for func in module.iter_funcdefs():
             yield FunctionDocstring(func)
 
         for klass in module.iter_classdefs():
-            yield ClassDocstring(klass)
+            yield Class(klass)
             for func in klass.iter_funcdefs():
-                yield MethodDocstring(func)
+                yield Method(func)
