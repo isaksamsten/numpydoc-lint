@@ -28,7 +28,7 @@ version = { attr = "numpydoc_lint.__version__" }
 
 [tool.ruff]
 select = ["E", "F", "D"] 
-ignore = ["PLR2004", "N803", "N806"]
+ignore = ["PLR2004", "N803", "N806", "F841"]
 
 [tool.ruff.per-file-ignores]
 "docs/conf.py" = ["E", "F", "D", "N", "PL", "RUF", "I001"]

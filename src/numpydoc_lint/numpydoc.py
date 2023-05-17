@@ -202,12 +202,52 @@ class Pos:
 
 
 @dataclass(frozen=True, kw_only=True)
-class Section:
+class DocStringParagraph:
+    start: Pos
+    end: Pos
+    data: list[str]
+
+
+@dataclass(frozen=True, kw_only=True)
+class DocStringSummary:
+    content: DocStringParagraph
+    extended_content: DocStringParagraph
+
+
+@dataclass(frozen=True, kw_only=True)
+class DocStringName:
+    start: Pos
+    end: Pos
+    value: str
+
+    def __len__(self):
+        return len(self.value)
+
+
+@dataclass(frozen=True, kw_only=True)
+class DocStringParameter:
+    start: Pos
+    end: Pos
+    header: str
+    name: DocStringName
+    types: DocStringName
+    optional: int
+    description: DocStringParagraph
+
+
+@dataclass(frozen=True, kw_only=True)
+class DocStringParameters:
+    header: str
+    parameters: List[DocStringParameter]
+
+
+@dataclass(frozen=True, kw_only=True)
+class DocStringSection:
     start_header: Pos
     end_header: Pos
     name: str
     valid_heading: bool
-    contents: list[str]
+    contents: List[str | DocStringParameter]
     start_contents: Pos
     end_contents: Pos
 
@@ -219,19 +259,6 @@ class Section:
 
     def __hash__(self):
         return hash(self.name)
-
-
-@dataclass(frozen=True, kw_only=True)
-class Paragraph:
-    start: Pos
-    end: Pos
-    data: list[str]
-
-
-@dataclass(frozen=True, kw_only=True)
-class Summary:
-    content: Paragraph
-    extended_content: Paragraph
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -255,7 +282,13 @@ class Parameter:
 _PYTHON_VERSION = "{}.{}.{}".format(*sys.version_info)
 
 
-def format_raw_doc(doc: str):
+def _format_raw_doc(doc: str):
+    doc_lines = doc.splitlines()  # if not re.match("^\s*#", line)]
+    while doc_lines and re.match("^\s*#|^\s*$", doc_lines[0]):
+        doc_lines.pop(0)
+
+    # This is required to support \ to escape a newline
+    doc = "\n".join(doc_lines).encode("utf-8").decode("unicode_escape")
     first_delim = doc.find('"')
     last_delim = doc.rfind('"')
 
@@ -266,6 +299,7 @@ def format_raw_doc(doc: str):
         first_delim_len = 4
     return (
         first_delim,
+        doc_lines,
         doc[:first_delim] + doc[first_delim + first_delim_len : last_delim - 2],
     )
 
@@ -292,12 +326,95 @@ def _get_docstring_node(node):
     return None
 
 
+_NAME_TYPE_PATTERN = re.compile("^\s*(?P<name>.*?)(?:\s*:\s*(?:(?P<type>.*?)\s*)?)?$")
+
+# Split type declaration:
+# a, b or c -> a | b | c
+# {"A", "B"} or int -> {"A", "B"} | int
+# A or B of shape (1, 2) -> A | B of shape (1, 2)
+_TYPE_PATTERN = re.compile(r"(?:\s*)(\{.*\}|.+?)(?:\s*(?:,(?![^()]*\))|or|$))")
+
+
+def _parse_parameter_list(
+    data: List[str],
+    *,
+    start: Pos,
+    indent: int,
+    single_element_is_type: bool = False,
+) -> List[DocStringParameter]:
+    params = []
+    reader = Reader([line[indent:] for line in data])
+    while not reader.eof():
+        parameter_start = start.move(line=reader._l)
+        header_str = reader.read()
+        header = re.match(_NAME_TYPE_PATTERN, header_str)
+
+        if header.group("name"):
+            name = DocStringName(
+                start=start.move(line=reader._l + 1, column=header.start("name")),
+                end=start.move(line=reader._l + 1, column=header.end("name")),
+                value=header.group("name"),
+            )
+        else:
+            name = None
+
+        optional = 0
+        if header.group("type"):
+            types = []
+
+            for type in re.finditer(_TYPE_PATTERN, header.group("type")):
+                type = DocStringName(
+                    start=start.move(
+                        line=reader._l + 1,
+                        column=header.start("type") + type.start(1),
+                    ),
+                    end=start.move(
+                        line=reader._l + 1,
+                        column=header.start("type") + type.end(1),
+                    ),
+                    value=type.group(1),
+                )
+
+                if type.value == "optional":
+                    optional += 1
+                else:
+                    types.append(type)
+            print(types)
+        else:
+            types = None
+
+        if types is None and single_element_is_type:
+            name, type = None, name
+
+        description_start = start.move(line=reader._l)
+        description = reader.read_to_next_unindented_line()
+        params.append(
+            DocStringParameter(
+                start=parameter_start,
+                end=start.move(line=reader._l),
+                header=header_str,
+                name=name,
+                types=types,
+                optional=optional,
+                description=DocStringParagraph(
+                    start=description_start,
+                    end=start.move(line=reader._l),
+                    data=strip_blank_lines(description),
+                ),
+            )
+        )
+
+    return params
+
+
 class DocString:
     def __init__(self, node=parso.python.tree.Node) -> None:
         self._node = node
         self._start = Pos(*node.start_pos)
         self._end = Pos(*node.end_pos)
-        self._indent, self._raw_docstring = format_raw_doc(node.get_code())
+        self._indent, self._docstring_lines, self._raw_docstring = _format_raw_doc(
+            node.get_code()
+        )
         self._reader = Reader(self._raw_docstring)
 
         self._docstring_lines = None
@@ -311,7 +428,7 @@ class DocString:
         return self._extended_summary
 
     @property
-    def summary(self) -> Summary:
+    def summary(self) -> DocStringSummary:
         if self._summary is None:
             reader = self._reader
             reader.reset()
@@ -327,13 +444,13 @@ class DocString:
                             continue
                     else:
                         break
-                content = Paragraph(
+                content = DocStringParagraph(
                     start=start, end=self.start.move(line=reader._l), data=content
                 )
                 if not reader.is_at_section():
                     start = self.start.move(line=reader._l)
                     extended_content = reader.read_to_next_section()
-                    extended_content = Paragraph(
+                    extended_content = DocStringParagraph(
                         start=start,
                         end=self.start.move(line=reader._l),
                         data=extended_content,
@@ -342,14 +459,14 @@ class DocString:
                     extended_content = None
 
                 self.start.move_line(line=reader._l)
-                self._summary = Summary(
+                self._summary = DocStringSummary(
                     content=content, extended_content=extended_content
                 )
 
         return self._summary
 
     @property
-    def sections(self) -> list[Section]:
+    def sections(self) -> list[DocStringSection]:
         if self._sections is None:
             self._sections = []
             self._reader.reset()
@@ -367,8 +484,34 @@ class DocString:
                     underline = data[1].strip()
                     if len(name) == len(underline):
                         valid_heading = re.match(r"^-*$", data[1]) is not None
+                        if name in (
+                            "Parameters",
+                            "Other Parameters",
+                            "Attributes",
+                            "Methods",
+                        ):
+                            contents = _parse_parameter_list(
+                                data[2:],
+                                start=self.start.move(line=line),
+                                indent=self.indent,
+                            )
+                        elif name in (
+                            "Returns",
+                            "Yields",
+                            "Raises",
+                            "Warns",
+                            "Receives",
+                        ):
+                            contents = _parse_parameter_list(
+                                data[2:],
+                                start=self.start.move(line=line),
+                                indent=self.indent,
+                                single_element_is_type=True,
+                            )
+                        else:
+                            contents = strip_empty_lines(data[:2])
                         self._sections.append(
-                            Section(
+                            DocStringSection(
                                 name=name,
                                 valid_heading=valid_heading,
                                 start_header=self.start.move_line(
@@ -377,7 +520,7 @@ class DocString:
                                 end_header=self.start.move_line(
                                     line=line, column=column + len(name)
                                 ),
-                                contents=strip_empty_lines(data[:2]),
+                                contents=contents,
                                 start_contents=self.start.move_line(line=line),
                                 end_contents=self.start.move_line(line=len(data) - 2),
                             )
@@ -385,7 +528,7 @@ class DocString:
 
         return self._sections
 
-    def get_section(self, name) -> Optional[Section]:
+    def get_section(self, name) -> Optional[DocStringSection]:
         for section in self.sections:
             if section.name == name:
                 return section
@@ -393,13 +536,13 @@ class DocString:
         return None
 
     @property
-    def raw_docstring(self) -> str:
+    def raw(self) -> str:
         return self._raw_docstring
 
     @property
-    def docstring_lines(self) -> list[str]:
+    def lines(self) -> list[str]:
         if self._docstring_lines is None:
-            self._docstring_lines = self.raw_docstring.split("\n")
+            self._docstring_lines = self.raw.split("\n")
         return self._docstring_lines
 
     @property
