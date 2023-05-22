@@ -5,6 +5,7 @@ from .numpydoc import (
     Node,
     Pos,
     DocStringParagraph,
+    DocStringParameter,
     DocStringSection,
     Parameter,
     DocString,
@@ -76,17 +77,17 @@ class Error:
         return self._terminate
 
 
-def empty_prefix_lines(doc: Node):
+def empty_prefix_lines(lines: List[str]):
     i = None
-    for i, row in enumerate(doc.lines):
+    for i, row in enumerate(lines):
         if row.strip():
             break
     return i
 
 
-def empty_suffix_lines(doc: Node):
+def empty_suffix_lines(lines: List[str]):
     i = None
-    for i, row in enumerate(reversed(doc.lines)):
+    for i, row in enumerate(reversed(lines)):
         if row.strip():
             break
     return i
@@ -133,7 +134,11 @@ class GL01Check(Check):
 
     def validate(self, node: Node) -> Optional[Error]:
         doc = node.docstring
-        if node.has_docstring and empty_prefix_lines(doc) != 1 and "\n" in doc.raw:
+        if (
+            node.has_docstring
+            and empty_prefix_lines(doc.lines) != 1
+            and "\n" in doc.raw
+        ):
             yield Error(
                 docstring=doc,
                 start=doc.start,
@@ -146,7 +151,7 @@ class GL01Check(Check):
 class GL02Check(Check):
     def validate(self, node: Node) -> Optional[Error]:
         doc = node.docstring
-        if empty_suffix_lines(doc) != 1 and "\n" in doc.raw:
+        if empty_suffix_lines(doc.lines) != 1 and "\n" in doc.raw:
             yield Error(
                 start=doc.end.move_line(line=-1),
                 docstring=doc,
@@ -635,7 +640,7 @@ class PR06Check(ParameterCheck):
                         )
 
 
-class PR07Check(ParameterCheck):
+class ParameterDescriptionCheck(ParameterCheck, metaclass=ABCMeta):
     def _validate_parameters(
         self,
         docstring: DocString,
@@ -644,8 +649,118 @@ class PR07Check(ParameterCheck):
         parameters = docstring.get_section("Parameters")
         for parameter in parameters.contents:
             description = parameter.description
-            if description.data:
-                pass
+            yield from self._validate_parameter_description(docstring, parameter)
+
+    @abstractmethod
+    def _validate_parameter_description(
+        self, docstring: DocString, parameter: DocStringParameter
+    ) -> Generator[Error, None, None]:
+        pass
+
+
+class PR07Check(ParameterDescriptionCheck):
+    def _validate_parameter_description(
+        self, docstring: DocString, parameter: DocStringParameter
+    ) -> Generator[Error, None, None]:
+        if not parameter.description.data or all(
+            line.strip() == "" for line in _before_directive(parameter.description.data)
+        ):
+            yield Error(
+                docstring=docstring,
+                start=parameter.name.start,
+                end=parameter.name.end,
+                code="PR07",
+                message="Parameter `{}` has no description.".format(
+                    parameter.name.value
+                ),
+                suggestion="Add description.",
+            )
+
+
+def _before_directive(lines: List[str]) -> List[str]:
+    new_lines = []
+    for line in lines:
+        if any(f".. {directive}" in line for directive in DIRECTIVES):
+            return new_lines
+
+        if line.strip():
+            new_lines.append(line)
+
+    return new_lines
+
+
+class PR08Check(ParameterDescriptionCheck):
+    def _validate_parameter_description(
+        self, docstring: DocString, parameter: DocStringParameter
+    ) -> Generator[Error, None, None]:
+        data = _before_directive(parameter.description.data)
+        if data:
+            first = data[0].lstrip()
+            if first and first[0].isalpha() and not first[0].isupper():
+                yield Error(
+                    docstring=docstring,
+                    start=parameter.name.start,
+                    end=parameter.name.end,
+                    code="PR08",
+                    message=(
+                        "Parameter `{}` description should start "
+                        "with uppercase letter."
+                    ).format(parameter.name.value),
+                    suggestion="Change first letter to uppercase.",
+                )
+
+
+class PR09Check(ParameterDescriptionCheck):
+    def _validate_parameter_description(
+        self, docstring: DocString, parameter: DocStringParameter
+    ) -> Generator[Error, None, None]:
+        data = _before_directive(parameter.description.data)
+        if data:
+            last = data[-1]
+            # TODO: deal with indented blocks
+            if last and last[-1] != "." and not last.startswith(("*", "- ")):
+                yield Error(
+                    docstring=docstring,
+                    start=parameter.name.start,
+                    end=parameter.name.end,
+                    code="PR09",
+                    message=(
+                        "Parameter `{}` description should end " "with period."
+                    ).format(parameter.name.value),
+                    suggestion="Add period to end of description.",
+                )
+
+
+class PR11Check(ParameterDescriptionCheck):
+    def _validate_parameter_description(
+        self, docstring: DocString, parameter: DocStringParameter
+    ) -> Generator[Error, None, None]:
+        if parameter.description.data:
+            if empty_prefix_lines(parameter.description.data) > 0:
+                yield Error(
+                    docstring=docstring,
+                    start=parameter.name.start,
+                    end=parameter.name.end,
+                    code="PR11",
+                    message="Empty lines between parameter name and description.",
+                    suggestion="Remove empty lines.",
+                )
+
+
+class PR12Check(ParameterDescriptionCheck):
+    def _validate_parameter_description(
+        self, docstring: DocString, parameter: DocStringParameter
+    ) -> Generator[Error, None, None]:
+        if parameter.description.data:
+            if empty_suffix_lines(parameter.description.data) > 0:
+                yield Error(
+                    docstring=docstring,
+                    start=parameter.name.start,
+                    end=parameter.name.end,
+                    code="PR12",
+                    message="Empty lines after parameter description.",
+                    suggestion="Remove empty lines.",
+                )
 
 
 class PR10Check(ParameterCheck):
@@ -694,7 +809,12 @@ _CHECKS = OrderedDict(
     PR04=PR04Check(),
     PR05=PR05Check(),
     PR06=PR06Check(),
+    PR07=PR07Check(),
+    PR08=PR08Check(),
+    PR09=PR09Check(),
     PR10=PR10Check(),
+    PR11=PR11Check(),
+    PR12=PR12Check(),
 )
 
 

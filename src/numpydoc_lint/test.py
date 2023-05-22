@@ -119,14 +119,15 @@ def test_params(a: int, b, c=10, d: int = 20):
     Parameters
     ----------
     a :{}
-        Test a.
+        test a
     q : integer
-        test.
     b : object\
             test
         Test b.
     c : object, optional
+
         Test c.
+
     **kwargs :OrderedDict or dict.
         Other arguments.
     unkown : object
