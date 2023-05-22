@@ -118,7 +118,7 @@ def test_params(a: int, b, c=10, d: int = 20):
 
     Parameters
     ----------
-    a : {}
+    a :{}
         Test a.
     q : integer
         test.

@@ -379,7 +379,6 @@ def _parse_parameter_list(
                     optional += 1
                 else:
                     types.append(type)
-            print(types)
         else:
             types = None
 
@@ -399,7 +398,7 @@ def _parse_parameter_list(
                 description=DocStringParagraph(
                     start=description_start,
                     end=start.move(line=reader._l),
-                    data=strip_blank_lines(description),
+                    data=description,
                 ),
             )
         )

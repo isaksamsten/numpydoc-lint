@@ -631,8 +631,43 @@ class PR06Check(ParameterCheck):
                             message="Parameter `{}` uses empty choice.".format(
                                 parameter.name.value
                             ),
-                            suggestion="Insert correct choices.",
+                            suggestion="Insert choices.",
                         )
+
+
+class PR07Check(ParameterCheck):
+    def _validate_parameters(
+        self,
+        docstring: DocString,
+        declared_parameters: List[Parameter],
+    ) -> Generator[Error, None, None]:
+        parameters = docstring.get_section("Parameters")
+        for parameter in parameters.contents:
+            description = parameter.description
+            if description.data:
+                pass
+
+
+class PR10Check(ParameterCheck):
+    def _validate_parameters(
+        self,
+        docstring: DocString,
+        declared_parameters: List[Parameter],
+    ) -> Generator[Error, None, None]:
+        parameters = docstring.get_section("Parameters")
+        if parameters and parameters.contents:
+            parameter = parameters.contents[0]
+            for match in re.finditer(r"(\S:|:\S|:\s*$|^\s*:)", parameter.header):
+                yield Error(
+                    docstring=docstring,
+                    start=parameter.name.start.move(column=match.start(1)),
+                    end=parameter.name.start.move(column=match.end(1)),
+                    code="PR10",
+                    message="Parameter `{}` requires a space between name and type.".format(
+                        parameter.name.value
+                    ),
+                    suggestion="Insert a space before and/or after `:`.",
+                )
 
 
 _CHECKS = OrderedDict(
@@ -659,6 +694,7 @@ _CHECKS = OrderedDict(
     PR04=PR04Check(),
     PR05=PR05Check(),
     PR06=PR06Check(),
+    PR10=PR10Check(),
 )
 
 
@@ -682,8 +718,9 @@ class Validator:
 
 
 class ErrorFormatter:
-    def __init__(self):
+    def __init__(self, ignored=None):
         self._errors: Mapping[str, Iterable[Error]] = defaultdict(list)
+        self._ignored = ignored or []
 
     def add_error(self, file: str, error: Error) -> None:
         self._errors[file].append(error)
@@ -702,7 +739,8 @@ class ErrorFormatter:
     def write(self, output: io.TextIOBase) -> None:
         for file, errors in self._errors.items():
             for error in errors:
-                output.write(self._format_error(file, error))
+                if error.code not in self._ignored:
+                    output.write(self._format_error(file, error))
 
 
 class DetailedErrorFormatter(ErrorFormatter):
