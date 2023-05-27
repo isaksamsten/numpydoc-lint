@@ -27,7 +27,7 @@ classifiers = [
 version = { attr = "numpydoc_lint.__version__" }
 
 [tool.ruff]
-select = ["E", "F", "D"] 
+select = ["E", "F", "D", "I"] 
 ignore = ["PLR2004", "N803", "N806", "F841"]
 
 [tool.ruff.per-file-ignores]

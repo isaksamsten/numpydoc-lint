@@ -35,7 +35,8 @@ class Test:
 """
     docstrings = list(Parser().iter_docstring(code))
     klass = docstrings[1]
+    parameters = klass.parameters
     assert klass.type == "class"
     assert parameters[0].name == "test"
-    assert paraneters[0].default == "10"
+    assert parameters[0].default == '"10"'
     assert parameters[0].annotation == "str"

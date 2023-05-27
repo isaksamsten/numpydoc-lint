@@ -1,9 +1,10 @@
-import sys
 import re
-from typing import Optional, List
+import sys
 from abc import ABCMeta, abstractproperty
-import parso
 from dataclasses import dataclass
+from typing import List, Optional
+
+import parso
 
 SUMMARY_SIGNATURE_PATTERN = re.compile(r"^([\w., ]+=)?\s*[\w\.]+\(.*\)$")
 
@@ -279,6 +280,32 @@ class Parameter:
         return self.star_count == 1
 
 
+@dataclass(frozen=True, kw_only=True)
+class Error:
+    line: int
+    column: int
+    message: str
+    abort: bool = False
+
+
+class Errors:
+    def __init__(self):
+        self._errors = []
+
+    def flag(self, *, message, line=None, column=None, abort=False):
+        self._errors.append(
+            Error(line=line, column=column, message=message, abort=abort)
+        )
+
+    @property
+    def any_fatal(self):
+        return any(error.abort for error in self._errors)
+
+    @property
+    def any_errors(self):
+        return len(self._errors) > 0
+
+
 _PYTHON_VERSION = "{}.{}.{}".format(*sys.version_info)
 
 
@@ -326,6 +353,92 @@ def _get_docstring_node(node):
     return None
 
 
+# https://github.com/numpy/numpydoc/blob/3d4a5831f9f64246404a6dac5c5059a71b020952/numpydoc/docscrape.py#LL273C5-L291C6
+_ROLE = r":(?P<role>(py:)?\w+):"
+_FUNC_BACK_TICK = r"`(?P<name>(?:~\w+\.)?[a-zA-Z0-9_\.-]+)`"
+_FUNC_PLAIN = r"(?P<name2>[a-zA-Z0-9_\.-]+)"
+_FUNC_NAME = r"(" + _ROLE + _FUNC_BACK_TICK + r"|" + _FUNC_PLAIN + r")"
+_FUNC_NAME_EXT = _FUNC_NAME.replace("role", "rolenext")
+_FUNC_NAME_EXT = _FUNC_NAME_EXT.replace("name", "namenext")
+_DESCRIPTION = r"(?P<description>\s*:(\s+(?P<desc>\S+.*))?)?\s*$"
+_FUNC_PATTERN = re.compile(r"^\s*" + _FUNC_NAME + r"\s*")
+_LINE_PATTERN = re.compile(
+    r"^\s*"
+    + r"(?P<allfuncs>"
+    + _FUNC_NAME  # group for all function names
+    + r"(?P<morefuncs>([,]\s+"
+    + _FUNC_NAME_EXT
+    + r")*)"
+    + r")"
+    + r"(?P<trailing>[,\.])?"  # end of "allfuncs"
+    + _DESCRIPTION  # Some function lists have a trailing comma (or period)  '\s*'
+)
+
+
+def _parse_see_also(
+    data: List[str],
+    *,
+    start: Pos,
+    indent: int,
+    errors: Errors,
+) -> List[DocStringParameter]:
+    def parse_item_name(text):
+        match = _FUNC_PATTERN.match(text)
+        if not match:
+            raise ParseError(f"Failed to parse {text}")
+
+        role = match.group("role")
+        name = match.group("name") if role else match.group("name2")
+        return name, role, match.end()
+
+    items = []
+    rest = []
+    for i, line in enumerate((line[indent:] for line in data)):
+        if not line.strip():
+            continue
+
+        match = _LINE_PATTERN.match(line)
+        description = None
+        if match:
+            description = match.group("desc")
+            if match.group("trailing") and description:
+                errors.flag(
+                    message="Unexpected comma or period after function list",
+                    line=start.line + i,
+                )
+
+        if not description and line.startswith(" "):
+            rest.append(line.strip())
+        elif match:
+            funcs = []
+            text = match.group("allfuncs")
+            while True:
+                if not text.strip():
+                    break
+
+                name, role, match_end = parse_item_name(text)
+                funcs.append((name, role))
+                text = text[match_end:].strip()
+                if text and text[0] == ",":
+                    text = text[1:].strip()
+
+            if description:
+                rest = [description]
+            else:
+                rest = []
+
+            # TODO:
+            # 1) add details with line number etc for the functions and names
+            # 2) rest as DocStringParagraph
+            items.append((funcs, rest))
+        else:
+            errors.flag(
+                message="Error parsing See also", line=start.line + i, abort=True
+            )
+
+    return items
+
+
 _NAME_TYPE_PATTERN = re.compile("^\s*(?P<name>.*?)(?:\s*:\s*(?:(?P<type>.*?)\s*)?)?$")
 
 # Split type declaration:
@@ -340,6 +453,7 @@ def _parse_parameter_list(
     *,
     start: Pos,
     indent: int,
+    # errors: Errors,
     single_element_is_type: bool = False,
 ) -> List[DocStringParameter]:
     params = []
@@ -507,6 +621,16 @@ class DocString:
                                 indent=self.indent,
                                 single_element_is_type=True,
                             )
+                        elif name == "See Also":
+                            errors = Errors()
+                            contents = _parse_see_also(
+                                data[2:],
+                                start=self.start.move(line=line),
+                                errors=errors,
+                                indent=self.indent,
+                            )
+                            # print(contents)
+                            # print(errors._errors)
                         else:
                             contents = strip_empty_lines(data[:2])
                         self._sections.append(
@@ -653,6 +777,18 @@ class FunctionDocstring(Node):
     @property
     def type(self):
         return "function"
+
+    @property
+    def returns(self):
+        return len(list(self.node.iter_return_stmts()))
+
+    @property
+    def yields(self):
+        return len(list(self.node.iter_yield_exprs()))
+
+    @property
+    def raises(self):
+        return len(list(self.node.iter_raise_stmts()))
 
 
 class Method(FunctionDocstring):

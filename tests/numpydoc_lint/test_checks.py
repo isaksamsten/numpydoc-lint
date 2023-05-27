@@ -1,9 +1,8 @@
-import pytest
 from dataclasses import dataclass
-from numpydoc_lint.numpydoc import Parser
-from numpydoc_lint.validate import GL01Check
-from numpydoc_lint.validate import Error
-from numpydoc_lint.numpydoc import Pos
+
+import pytest
+from numpydoc_lint.numpydoc import Parser, Pos
+from numpydoc_lint.validate import Error, GL01Check
 
 
 @dataclass

@@ -123,15 +123,22 @@ def test_params(a: int, b, c=10, d: int = 20):
     q : integer
     b : object\
             test
+
         Test b.
     c : object, optional
-
         Test c.
+    x : object
+        A parameter.
 
     **kwargs :OrderedDict or dict.
         Other arguments.
     unkown : object
         Unkown test.
+
+    See Also
+    --------
+    test : a test function,
+    :obj:`test` : test func
     """
     pass
 
@@ -150,5 +157,15 @@ def test_wrong_order(a, b, c):
         Test.
     b : int
         Test.
+
+    Returns
+    -------
+    wrongs : int
+        test
+        .. deprecated:: 1.0
+    rights : int
+        The numver in right order::
+            Test
+            Test
     """
-    pass
+    return None
