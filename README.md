@@ -79,5 +79,7 @@ error[PR06]: Parameter `q` uses wrong type.
 # TODO
 
 [ ] Add tests.
+
 [ ] Add `--fix` argument to fix simple errors.
+
 [ ] Add `pre-commit` hook support.
