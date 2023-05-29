@@ -39,6 +39,7 @@ class PR01(ParameterCheck):
             start = docstring.start
             end = docstring.end
             actual_parameters = []
+
         for expected in expected_parameters:
             if expected.name not in actual_parameters:
                 yield Error(
@@ -147,6 +148,9 @@ class PR05(ParameterCheck):
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
         parameters: DocStringSection = docstring.get_section("Parameters")
+        if not parameters:
+            return
+
         for parameter in parameters.contents:
             if parameter.types:
                 type = parameter.types[-1]
@@ -173,6 +177,8 @@ class PR06(ParameterCheck):
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
         parameters = docstring.get_section("Parameters")
+        if not parameters:
+            return
         for parameter in parameters.contents:
             if parameter.types:
                 for type in parameter.types:

@@ -1,7 +1,9 @@
-# # """Test."""
-#
-# MY_CONST = "hello world"
-# r"""TEST.{MY_CONST} """
+# noqa: PR01
+"""Test."""
+
+# noqa: SS03
+MY_CONST = "hello world"
+r"""TEST.{MY_CONST} """
 #
 #
 # #
@@ -106,11 +108,16 @@
 #         """Represents a method."""
 #         pass
 
-"""Summary."""
+
+# noqa: SS01
+class Test:
+    # noqa: SS11
+    def test(self):
+        pass
 
 
-def test_params(a: int, b, c=10, d: int = 20):
-    # Test
+# noqa: PRE01
+def __add__(a: int, b, c=10, d: int = 20):
     """
     Summary.
 
@@ -143,6 +150,7 @@ def test_params(a: int, b, c=10, d: int = 20):
     pass
 
 
+# noqa: PR01
 def test_wrong_order(a, b, c):
     """
     Summary.

@@ -150,7 +150,7 @@ class GL08(Check):
                 end=node.end,
                 docstring=None,
                 code="GL08",
-                message=f"The {node.type} does not have a docstring",
+                message=f"{node.type.capitalize()} does not have a docstring",
                 terminate=True,
             )
 

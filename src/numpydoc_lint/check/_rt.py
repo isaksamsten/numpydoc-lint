@@ -92,7 +92,9 @@ class RT03(ReturnDescriptionCheck):
         self, docstring: DocString, parameter: DocStringParameter
     ) -> Generator[Error, None, None]:
         name = (
-            parameter.name.value if parameter.name is not None else parameter.type.value
+            parameter.name.value
+            if parameter.name is not None
+            else ",".join(t.value for t in parameter.types)
         )
         yield from _validate_parameter_has_description(
             docstring=docstring,
@@ -108,7 +110,9 @@ class RT04(ReturnDescriptionCheck):
         self, docstring: DocString, parameter: DocStringParameter
     ) -> Generator[Error, None, None]:
         name = (
-            parameter.name.value if parameter.name is not None else parameter.type.value
+            parameter.name.value
+            if parameter.name is not None
+            else ",".join(t.value for t in parameter.types)
         )
         yield from _validate_parameter_description_start_uppercase(
             docstring=docstring,
@@ -126,7 +130,9 @@ class RT05(ReturnDescriptionCheck):
         self, docstring: DocString, parameter: DocStringParameter
     ) -> Generator[Error, None, None]:
         name = (
-            parameter.name.value if parameter.name is not None else parameter.type.value
+            parameter.name.value
+            if parameter.name is not None
+            else ",".join(t.value for t in parameter.types)
         )
         yield from _validate_parameter_description_ends_period(
             docstring=docstring,

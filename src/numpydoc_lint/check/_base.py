@@ -55,7 +55,7 @@ class Error:
         Returns
         -------
         bool
-            ``True`` if the remaining checks should be skipped; ``False``
+            `True` if the remaining checks should be skipped; `False`
             otherwise.
         """
         return self._terminate
