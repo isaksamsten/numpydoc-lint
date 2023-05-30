@@ -16,6 +16,7 @@ from ._pr import (
     PR10,
     PRE01,
     PRE02,
+    PRE03,
 )
 from ._rt import RT01, RT02, RT03, RT04, RT05
 from ._ss import SS01, SS02, SS03, SS04, SS05, SS06
@@ -46,6 +47,7 @@ __all__ = [
     "PR10",
     "PRE01",
     "PRE02",
+    "PRE03",
     "RT01",
     "RT02",
     "RT03",

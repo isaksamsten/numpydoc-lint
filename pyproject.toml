@@ -9,7 +9,7 @@ readme = "README.md"
 description = "Simple linter for numpydoc."
 dynamic = ["version"]
 license = { text = "BSD-3-Clause" }
-dependencies = ["parso>=0.8.3", "numpydoc>=1.5.0"]
+dependencies = ["parso>=0.8.3", "tomli>=2.0.0"]
 classifiers = [
     'License :: OSI Approved :: MIT License',
     'Operating System :: MacOS',
@@ -26,8 +26,11 @@ classifiers = [
 [tool.setuptools.dynamic]
 version = { attr = "numpydoc_lint.__version__" }
 
+[project.scripts]
+numpydoc-lint = "numpydoc_lint.cmd:run"
+
 [tool.ruff]
-select = ["E", "F", "D", "I"] 
+select = ["E", "F", "D" ] 
 ignore = ["PLR2004", "N803", "N806", "F841"]
 
 [tool.ruff.per-file-ignores]
@@ -39,3 +42,9 @@ max-args = 15 # We use many keyword arguments for estimators
 
 [tool.ruff.pydocstyle]
 convention = "numpy"
+
+[tool.numpydoc-lint]
+# select = ["PR"]
+# ignore = ["PRE01"]
+exclude-magic = true
+include-private = true 

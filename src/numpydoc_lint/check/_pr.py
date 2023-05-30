@@ -305,6 +305,28 @@ class PRE02(ParameterDescriptionCheck):
                 )
 
 
+class PRE03(ParameterCheck):
+    def _validate_parameters(
+        self,
+        docstring: DocString,
+        declared_parameters: List[Parameter],
+    ) -> Generator[Error, None, None]:
+        parameters = docstring.get_section("Parameters")
+        if parameters and parameters.contents:
+            for parameter in parameters.contents:
+                if parameter.optional > 1:
+                    yield Error(
+                        docstring=docstring,
+                        start=parameter.name.start,
+                        end=parameter.name.end,
+                        code="PRE03",
+                        message="Paramter `{}` specify optional multiple times.".format(
+                            parameter.name.value
+                        ),
+                        suggestion="Remove duplicate `optional`.",
+                    )
+
+
 class PR10(ParameterCheck):
     def _validate_parameters(
         self,

@@ -111,10 +111,11 @@ def _validate_parameter_has_description(
     if not parameter.description.data or all(
         line.strip() == "" for line in _before_directive(parameter.description.data)
     ):
+        name = parameter.name if parameter.name is not None else parameter.types[0]
         yield Error(
             docstring=docstring,
-            start=parameter.name.start,
-            end=parameter.name.end,
+            start=name.start,
+            end=name.end,
             code=code,
             message=message,
             suggestion=suggestion,
@@ -134,10 +135,11 @@ def _validate_parameter_description_start_uppercase(
     if data:
         first = data[0].lstrip()
         if first and first[0].isalpha() and not first[0].isupper():
+            name = parameter.name if parameter.name is not None else parameter.types[0]
             yield Error(
                 docstring=docstring,
-                start=parameter.name.start,
-                end=parameter.name.end,
+                start=name.start,
+                end=name.end,
                 code=code,
                 message=message,
                 suggestion=suggestion,
@@ -168,10 +170,13 @@ def _validate_parameter_description_ends_period(
                 and not last.startswith(("*", "- "))
                 and indent <= docstring.indent  # code-blocks
             ):
+                name = (
+                    parameter.name if parameter.name is not None else parameter.types[0]
+                )
                 yield Error(
                     docstring=docstring,
-                    start=parameter.name.start,
-                    end=parameter.name.end,
+                    start=name.start,
+                    end=name.end,
                     code=code,
                     message=message,
                     suggestion=suggestion,

@@ -177,10 +177,10 @@ class Reader:
         l2 = self.peek(1).strip()  # ---------- or ==========
         if len(l2) >= 3 and (set(l2) in ({"-"}, {"="})) and len(l2) != len(l1):
             snip = "\n".join(self._str[:2]) + "..."
-            self._error_location(
-                f"potentially wrong underline length... \n{l1} \n{l2} in \n{snip}",
-                error=False,
-            )
+            # self._error_location(
+            #     f"potentially wrong underline length... \n{l1} \n{l2} in \n{snip}",
+            #     error=False,
+            # )
         return l2.startswith("-" * len(l1)) or l2.startswith("=" * len(l1))
 
     def read_to_next_section(self):
@@ -527,6 +527,9 @@ def _parse_parameter_list(
     while not reader.eof():
         parameter_start = start.move(line=reader._l)
         header_str = reader.read()
+        if not header_str.strip():
+            continue
+
         header = re.match(_NAME_TYPE_PATTERN, header_str)
         if header.group("name"):
             name = DocStringName(
@@ -587,8 +590,8 @@ def _parse_parameter_list(
 class DocString:
     def __init__(self, node=parso.python.tree.Node) -> None:
         self._node = node
-        self._start = Pos(*node.start_pos)
-        self._end = Pos(*node.end_pos)
+        self._start = Pos(node.start_pos[0], node.start_pos[1] + 1)
+        self._end = Pos(node.end_pos[0], node.end_pos[1] + 1)
         self._indent, self._docstring_lines, self._raw_docstring = _format_raw_doc(
             node.get_code()
         )
@@ -610,7 +613,7 @@ class DocString:
             reader = self._reader
             reader.reset()
             if reader.is_at_section():
-                self._summary = None
+                self._summary = DocStringSummary(content=None, extended_content=None)
             else:
                 start = self.start.move_line(line=reader._l)
                 while True:
@@ -693,8 +696,6 @@ class DocString:
                                 errors=errors,
                                 indent=self.indent,
                             )
-                            # print(contents)
-                            # print(errors._errors)
                         else:
                             contents = strip_empty_lines(data[:2])
                         self._sections.append(
@@ -786,11 +787,13 @@ class Node(metaclass=ABCMeta):
 
     @property
     def start(self):
-        return Pos(*self.node.start_pos)
+        line, col = self.node.start_pos
+        return Pos(line, col + 1)
 
     @property
     def end(self):
-        return Pos(*self.node.end_pos)
+        line, col = self.node.end_pos
+        return Pos(line, col + 1)
 
 
 def _find_noqa(prefix: str) -> List[str]:
@@ -840,11 +843,15 @@ class Constant(Node):
 def _wrap_parameters(params: List[parso.python.tree.Param]):
     return [
         Parameter(
-            start=Pos(*param.start_pos),
-            end=Pos(*param.end_pos),
+            start=Pos(param.start_pos[0], param.start_pos[1] + 1),
+            end=Pos(param.end_pos[0], param.end_pos[1] + 1),
             name=param.name.value,
-            default=param.default.value if param.default is not None else None,
-            annotation=param.annotation.value if param.annotation is not None else None,
+            default=param.default.get_code(include_prefix=False)
+            if param.default is not None
+            else None,
+            annotation=param.annotation.get_code(include_prefix=False)
+            if param.annotation is not None
+            else None,
             star_count=param.star_count,
         )
         for param in params
@@ -970,8 +977,9 @@ class Parser:
         module = self._parse(code).get_root_node()
         yield Module(module)
 
-        for const in module._search_in_scope("expr_stmt"):
-            yield Constant(const)
+        # FIXME
+        # for const in module._search_in_scope("expr_stmt"):
+        #     yield Constant(const)
 
         for func in module.iter_funcdefs():
             yield FunctionDocstring(func)

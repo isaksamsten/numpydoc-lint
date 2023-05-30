@@ -27,6 +27,7 @@ from .check import (
     PR10,
     PRE01,
     PRE02,
+    PRE03,
     RT01,
     RT02,
     RT03,
@@ -75,6 +76,7 @@ _CHECKS = OrderedDict(
     PR10=PR10(),
     PRE01=PRE01(),
     PRE02=PRE02(),
+    PRE03=PRE03(),
     RT01=RT01(),
     RT02=RT02(),
     RT03=RT03(),
@@ -141,6 +143,10 @@ class ErrorFormatter:
     @property
     def has_errors(self):
         return len(self._errors) > 0
+
+    @property
+    def errors(self):
+        return sum(len(errors) for errors in self._errors.values())
 
 
 class DetailedErrorFormatter(ErrorFormatter):

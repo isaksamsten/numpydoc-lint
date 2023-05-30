@@ -10,7 +10,7 @@ from ._base import Check, Error
 class SS01(Check):
     def _validate(self, node: Node) -> Generator[Error, None, None]:
         doc = node.docstring
-        if not doc.summary.content.data:
+        if not doc.summary.content:
             yield Error(
                 docstring=doc,
                 code="SS01",
@@ -22,8 +22,8 @@ class SS01(Check):
 class SS02(Check):
     def _validate(self, node: Node) -> Generator[Error, None, None]:
         doc = node.docstring
-        data = doc.summary.content.data
-        if data:
+        if doc.summary.content:
+            data = doc.summary.content.data
             first_line = data[0].strip()
             if first_line[0].isalpha() and not first_line[0].isupper():
                 yield Error(
@@ -40,8 +40,8 @@ class SS02(Check):
 class SS03(Check):
     def _validate(self, node: Node) -> Generator[Error, None, None]:
         doc = node.docstring
-        data = doc.summary.content.data
-        if data:
+        if doc.summary.content:
+            data = doc.summary.content.data
             if data[0][-1] != ".":
                 yield Error(
                     docstring=doc,
@@ -58,8 +58,8 @@ class SS03(Check):
 class SS04(Check):
     def _validate(self, node: Node) -> Generator[Error, None, None]:
         doc = node.docstring
-        data = doc.summary.content.data
-        if data:
+        if doc.summary.content:
+            data = doc.summary.content.data
             indent = doc.indent
             first_line_indent = len(data[0]) - len(data[0].lstrip())
             if first_line_indent != indent:
@@ -80,6 +80,9 @@ class SS04(Check):
 class SS05(Check):
     def _validate(self, node: Node) -> Generator[Error, None, None]:
         doc = node.docstring
+        if doc.summary.content is None:
+            return
+
         data = doc.summary.content.data
         if node.type in ["function", "method"] and data:
             match = re.match(r"^\s*(.*?)\s+", data[0])
@@ -100,6 +103,9 @@ class SS05(Check):
 
 class SS06(Check):
     def _validate(self, node: Node) -> Generator[Error, None, None]:
+        if node.docstring.summary.content is None:
+            return
+
         data = node.docstring.summary.content.data
         if len(data) > 1:
             yield Error(

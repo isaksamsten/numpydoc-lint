@@ -12,6 +12,8 @@ class ES01(Check):
         if not doc.summary.extended_content:
             yield Error(
                 docstring=doc,
+                start=doc.start,
+                end=doc.start.move(column=3),
                 code="ES01",
                 message="No extended summary found.",
             )

@@ -144,10 +144,23 @@ class GL08(Check):
         yield
 
     def validate(self, node: Node) -> Generator[Error, None, None]:
+        """
+        Validate the docstring.
+
+        Parameters
+        ----------
+        node : Node
+            The node.
+
+        Returns
+        -------
+        Generator[Error, None, None]
+            [TODO:description]
+        """
         if not node.has_docstring:
             yield Error(
                 start=node.start,
-                end=node.end,
+                end=node.start,
                 docstring=None,
                 code="GL08",
                 message=f"{node.type.capitalize()} does not have a docstring",

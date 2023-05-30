@@ -109,6 +109,9 @@ r"""TEST.{MY_CONST} """
 #         pass
 
 
+import numpy as np
+
+
 # noqa: SS01
 class Test:
     # noqa: SS11
@@ -116,8 +119,17 @@ class Test:
         pass
 
 
-# noqa: PRE01
-def __add__(a: int, b, c=10, d: int = 20):
+def _array_or_scalar(x, squeeze=True):
+    if not isinstance(x, np.ndarray):
+        return x
+
+    if x.size == 1:
+        return x.item()
+    else:
+        return np.squeeze(x) if squeeze else x
+
+
+def test(*, a: int, b, c=10, d: int = 20):
     """
     Summary.
 
@@ -132,7 +144,7 @@ def __add__(a: int, b, c=10, d: int = 20):
             test
 
         Test b.
-    c : object, optional
+    c : object, optional, optional
         Test c.
     x : object
         A parameter.
