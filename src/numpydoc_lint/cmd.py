@@ -14,7 +14,7 @@ _ERROR_FORMATTERS = {
 
 
 def _get_checks(select, ignore):
-    if select is None or select == "all":
+    if select is None or "all" in select:
         checks = _CHECKS
     else:
         checks = {
