@@ -657,7 +657,8 @@ class DocString:
                     self._sections = []
                     break
 
-                column = len(data[0]) - len(data[0].lstrip())
+                # TODO: consider self.indent
+                column = len(data[0]) - len(data[0].lstrip()) + 1
 
                 if len(data) > 1:
                     name = data[0].strip()
