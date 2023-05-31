@@ -380,8 +380,7 @@ def _format_raw_doc(doc: str):
     while doc_lines and re.match("^\s*#|^\s*$", doc_lines[0]):
         doc_lines.pop(0)
 
-    # This is required to support \ to escape a newline
-    doc = "\n".join(doc_lines).encode("utf-8").decode("unicode_escape")
+    doc = "\n".join(doc_lines)
     first_delim = doc.find('"')
     last_delim = doc.rfind('"')
 
@@ -390,6 +389,10 @@ def _format_raw_doc(doc: str):
     if first_r > -1 and first_delim - first_r == 1:  # r-string
         first_delim = first_r
         first_delim_len = 4
+        doc = doc.encode("utf-8").decode("raw_unicode_escape")
+    else:
+        doc = doc.encode("utf-8").decode("unicode_escape")
+
     return (
         first_delim,
         doc_lines,
