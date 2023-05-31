@@ -171,7 +171,7 @@ class DetailedErrorFormatter(ErrorFormatter):
                 )
             offending_line = "".join(offending_lines)
 
-            line_pad = (" " * len(line)) + " | " + (" " * error.start.column)
+            line_pad = (" " * len(line)) + " | " + (" " * (error.start.column - 1))
             underline_len = error.end.column - error.start.column
             if underline_len == 0:
                 underline_len = 1
