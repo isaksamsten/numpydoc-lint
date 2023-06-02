@@ -44,7 +44,7 @@ max-args = 15 # We use many keyword arguments for estimators
 convention = "numpy"
 
 [tool.numpydoc-lint]
-# select = ["PR"]
+select = []
 # ignore = ["PRE01"]
 exclude-magic = true
 include-private = true 

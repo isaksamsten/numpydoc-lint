@@ -1,7 +1,7 @@
 import io
 import re
 from collections import OrderedDict, defaultdict
-from typing import Generator, Iterable, List, Mapping
+from typing import Generator, Iterable, List, Mapping, Tuple
 
 from .check import (
     ES01,
@@ -11,7 +11,6 @@ from .check import (
     GL04,
     GL06,
     GL07,
-    GL08,
     GL09,
     GL10,
     GLE01,
@@ -42,12 +41,10 @@ from .check import (
     YD01,
 )
 from .check._base import Check, Error
-from .numpydoc import (
-    Node,
-)
+from .numpydoc import Node
 
 _CHECKS = OrderedDict(
-    GL08=GL08(),  # Terminates if fails
+    # GL08=GL08(),  # Terminates if fails
     GL01=GL01(),
     GL02=GL02(),
     GL03=GL03(),
@@ -89,42 +86,42 @@ _CHECKS = OrderedDict(
 class Validator:
     def __init__(
         self,
-        node: Node,
+        checks: List[Check],
         *,
         include_private=False,
         exclude_magic=False,
-        checks: List[Check] = None
     ) -> None:
-        self.node = node
         self.include_private = include_private
         self.exclude_magic = exclude_magic
         self.checks = checks
 
-    def validate(self) -> Generator[Error, None, None]:
-        self._is_validated = True
-
-        if not self.include_private and self.node.private:
+    def validate(self, node: Node) -> Generator[Error, None, None]:
+        if not self.include_private and node.private:
             return
 
-        if self.exclude_magic and self.node.magic:
+        if self.exclude_magic and node.magic:
             return
 
-        for check in self.checks:
-            if check.__class__.__name__ not in self.node.noqa:
-                for error in check.validate(self.node):
-                    yield error
-                    if error.terminate:
-                        return
+        docstring, errors = node.parse_docstring()
+        for error in errors:
+            if error.code not in node.noqa:
+                yield error
+
+        if docstring:
+            for check in self.checks:
+                if check.__class__.__name__ not in node.noqa:
+                    for error in check.validate(node, docstring):
+                        yield error
 
 
 class ErrorFormatter:
     def __init__(self):
-        self._errors: Mapping[str, Iterable[Error]] = defaultdict(list)
+        self._errors: Mapping[str, Iterable[Tuple[Node, Error]]] = defaultdict(list)
 
-    def add_error(self, file: str, error: Error) -> None:
-        self._errors[file].append(error)
+    def add_error(self, file: str, node: Node, error: Error) -> None:
+        self._errors[file].append((node, error))
 
-    def _format_error(self, file: str, error: Error):
+    def _format_error(self, file: str, node: Node, error: Error):
         return "{}:{}:{}:{}:{}: {} {}\n".format(
             file,
             error.start.line,
@@ -137,8 +134,8 @@ class ErrorFormatter:
 
     def write(self, output: io.TextIOBase) -> None:
         for file, errors in self._errors.items():
-            for error in errors:
-                output.write(self._format_error(file, error))
+            for node, error in errors:
+                output.write(self._format_error(file, node, error))
 
     @property
     def has_errors(self):
@@ -150,9 +147,9 @@ class ErrorFormatter:
 
 
 class DetailedErrorFormatter(ErrorFormatter):
-    def _format_error(self, file: str, error: Error) -> str:
+    def _format_error(self, file: str, node: Node, error: Error) -> str:
         line = str(error.start.line)
-        docstring = error.docstring
+        docstring = node.docstring_node.get_code()
         if docstring:
             error_start = error.start.normalize(docstring.start)
             offending_lines = []
@@ -162,15 +159,10 @@ class DetailedErrorFormatter(ErrorFormatter):
                     continue
 
                 offending_lines.append(
-                    "{} | {}\n".format(
-                        docstring.start.line + i,
-                        docstring.lines[i],
-                        # if i > 0
-                        # else (" " * docstring.start.column) + '"""',  # FIXME!
-                    )
+                    "{} | {}\n".format(docstring.start.line + i, docstring.lines[i])
                 )
             offending_line = "".join(offending_lines)
-
+            print(error.code, error.start)
             line_pad = (" " * len(line)) + " | " + (" " * (error.start.column - 1))
             underline_len = error.end.column - error.start.column
             if underline_len == 0:

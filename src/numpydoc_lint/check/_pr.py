@@ -15,10 +15,12 @@ from ._base import (
 
 
 class ParameterCheck(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
         if node.type in ("function", "method", "class"):
             yield from self._validate_parameters(
-                node.docstring,
+                docstring,
                 node.parameters,
             )
 
@@ -29,7 +31,7 @@ class PR01(ParameterCheck):
         docstring: DocString,
         expected_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters: DocStringSection = docstring.get_section("Parameters")
+        parameters = docstring.sections.get("Paramsections.get")
 
         if parameters:
             start = parameters.start_contents
@@ -43,7 +45,6 @@ class PR01(ParameterCheck):
         for expected in expected_parameters:
             if expected.name not in actual_parameters:
                 yield Error(
-                    docstring=docstring,
                     start=start,
                     end=end,
                     code="PR01",
@@ -58,13 +59,12 @@ class PR02(ParameterCheck):
         docstring: DocString,
         expected_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters: DocStringSection = docstring.get_section("Parameters")
+        parameters: DocStringSection = docstring.sections.get("Parameters")
         if parameters:
             expected_parameters = [p.name for p in expected_parameters]
             for actual_parameter in parameters.contents:
                 if actual_parameter.name.value not in expected_parameters:
                     yield Error(
-                        docstring=docstring,
                         start=actual_parameter.name.start,
                         end=actual_parameter.name.end,
                         code="PR02",
@@ -84,7 +84,7 @@ class PR03(ParameterCheck):
         docstring: DocString,
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters = docstring.get_section("Parameters")
+        parameters = docstring.sections.get("Parameters")
         if parameters:
             if len(parameters.contents) == len(declared_parameters):
                 for doc_parameter, dec_parameter in zip(
@@ -92,7 +92,6 @@ class PR03(ParameterCheck):
                 ):
                     if doc_parameter.name.value != dec_parameter.name:
                         yield Error(
-                            docstring=docstring,
                             start=doc_parameter.name.start,
                             end=doc_parameter.name.end,
                             code="PR03",
@@ -111,7 +110,7 @@ class PR04(ParameterCheck):
         docstring: DocString,
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters = docstring.get_section("Parameters")
+        parameters = docstring.sections.get("Parameters")
         if parameters:
             for parameter in parameters.contents:
                 if parameter.types is None:
@@ -130,7 +129,6 @@ class PR04(ParameterCheck):
                         suggestion = "Add a type declaration."
 
                     yield Error(
-                        docstring=docstring,
                         start=parameter.name.start,
                         end=parameter.name.end,
                         code="PR04",
@@ -147,7 +145,7 @@ class PR05(ParameterCheck):
         docstring: DocString,
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters: DocStringSection = docstring.get_section("Parameters")
+        parameters: DocStringSection = docstring.sections.get("Parameters")
         if not parameters:
             return
 
@@ -159,7 +157,6 @@ class PR05(ParameterCheck):
                         parameter.name.value
                     )
                     yield Error(
-                        docstring=docstring,
                         start=type.end,
                         end=type.end,
                         code="PR05",
@@ -176,7 +173,7 @@ class PR06(ParameterCheck):
         docstring: DocString,
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters = docstring.get_section("Parameters")
+        parameters = docstring.sections.get("Parameters")
         if not parameters:
             return
         for parameter in parameters.contents:
@@ -184,7 +181,6 @@ class PR06(ParameterCheck):
                 for type in parameter.types:
                     if type.value in PR06._common_type_errors:
                         yield Error(
-                            docstring=docstring,
                             start=type.start,
                             end=type.end,
                             code="PR06",
@@ -197,7 +193,6 @@ class PR06(ParameterCheck):
                         )
                     elif type.value == "{}":
                         yield Error(
-                            docstring=docstring,
                             start=type.start,
                             end=type.end,
                             code="PR06",
@@ -214,7 +209,7 @@ class ParameterDescriptionCheck(ParameterCheck, metaclass=ABCMeta):
         docstring: DocString,
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters = docstring.get_section("Parameters")
+        parameters = docstring.sections.get("Parameters")
         if parameters:
             for parameter in parameters.contents:
                 yield from self._validate_parameter_description(docstring, parameter)
@@ -276,7 +271,6 @@ class PRE01(ParameterDescriptionCheck):
         if parameter.description.data:
             if empty_prefix_lines(parameter.description.data) > 0:
                 yield Error(
-                    docstring=docstring,
                     start=parameter.name.start,
                     end=parameter.name.end,
                     code="PRE01",
@@ -294,7 +288,6 @@ class PRE02(ParameterDescriptionCheck):
         if parameter.description.data:
             if empty_suffix_lines(parameter.description.data) > 0:
                 yield Error(
-                    docstring=docstring,
                     start=parameter.name.start,
                     end=parameter.name.end,
                     code="PRE02",
@@ -311,12 +304,11 @@ class PRE03(ParameterCheck):
         docstring: DocString,
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters = docstring.get_section("Parameters")
+        parameters = docstring.sections.get("Parameters")
         if parameters and parameters.contents:
             for parameter in parameters.contents:
                 if parameter.optional > 1:
                     yield Error(
-                        docstring=docstring,
                         start=parameter.name.start,
                         end=parameter.name.end,
                         code="PRE03",
@@ -327,18 +319,21 @@ class PRE03(ParameterCheck):
                     )
 
 
+# TODO: PRE04 - optional but no default value, default value but no optional
+# TODO: PRE05 - type(s) does not agree with type annotation
+
+
 class PR10(ParameterCheck):
     def _validate_parameters(
         self,
         docstring: DocString,
         declared_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters = docstring.get_section("Parameters")
+        parameters = docstring.sections.get("Parameters")
         if parameters and parameters.contents:
             parameter = parameters.contents[0]
             for match in re.finditer(r"(\S:|:\S|:\s*$|^\s*:)", parameter.header):
                 yield Error(
-                    docstring=docstring,
                     start=parameter.name.start.move(column=match.start(1)),
                     end=parameter.name.start.move(column=match.end(1)),
                     code="PR10",

@@ -1,8 +1,19 @@
 import re
 import sys
 from abc import ABCMeta, abstractproperty
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
+from ._model import (
+    DocString,
+    DocStringName,
+    DocStringSummary,
+    DocStringSection,
+    DocStringParagraph,
+    DocStringParameter,
+    Error,
+    Parameter,
+    Name,
+    Pos,
+)
 
 import parso
 
@@ -75,74 +86,34 @@ _MAGIC_METHODS = [
 SUMMARY_SIGNATURE_PATTERN = re.compile(r"^([\w., ]+=)?\s*[\w\.]+\(.*\)$")
 
 
-def strip_blank_lines(l):
-    """Remove leading and trailing blank lines from a list of lines."""
-    while l and not l[0].strip():
-        del l[0]
-    while l and not l[-1].strip():
-        del l[-1]
-    return l
-
-
 class Reader:
-    r"""A line-based string reader.
-
-    Parameters
-    ----------
-    data : str
-        String with lines separated by '\n'.
-
-    """
-
     def __init__(self, data):
-        if isinstance(data, list):
-            self._str = data
-        else:
-            self._str = data.split("\n")  # store string as list of lines
-
-        self.reset()
+        self._lines = data
+        self._current_line = 0
 
     def __getitem__(self, n):
-        return self._str[n]
-
-    def reset(self):
-        self._l = 0  # current line nr
+        return self._lines[n]
 
     def read(self):
         if not self.eof():
-            out = self[self._l]
-            self._l += 1
+            out = self[self._current_line]
+            self._current_line += 1
             return out
         else:
             return ""
 
-    def seek_next_non_empty_line(self):
-        for l in self[self._l :]:
-            if l.strip():
-                break
-            else:
-                self._l += 1
-
     def eof(self):
-        return self._l >= len(self._str)
+        return self._current_line >= len(self._lines)
 
     def read_to_condition(self, condition_func):
-        start = self._l
+        start = self._current_line
         for line in self[start:]:
             if condition_func(line):
-                return self[start : self._l]
-            self._l += 1
+                return self[start : self._current_line]
+            self._current_line += 1
             if self.eof():
-                return self[start : self._l + 1]
+                return self[start : self._current_line + 1]
         return []
-
-    def read_to_next_empty_line(self):
-        self.seek_next_non_empty_line()
-
-        def is_empty(line):
-            return not line.strip()
-
-        return self.read_to_condition(is_empty)
 
     def read_to_next_unindented_line(self):
         def is_unindented(line):
@@ -150,58 +121,53 @@ class Reader:
 
         return self.read_to_condition(is_unindented)
 
-    # def strip(self, doc):
-    #     i = 0
-    #     j = 0
-    #     for i, line in enumerate(doc):
-    #         if line.strip():
-    #             break
-    #
-    #     for j, line in enumerate(doc[::-1]):
-    #         if line.strip():
-    #             break
-    #
-    #     return doc[i : len(doc) - j]
+    def read_to_next_blank(self):
+        result = [self.read_next()]
+        while self.peek().strip() and not self.eof():
+            result.append(self.read_next())
+        return result
+
+    def read_to_eof(self):
+        data = self._lines[self._current_line :]
+        self._current_line = len(self._lines)
+        return data
 
     def is_at_section(self):
-        self.seek_next_non_empty_line()
-
         if self.eof():
             return False
 
         l1 = self.peek().strip()  # e.g. Parameters
+        if not l1.strip():
+            return False
 
         if l1.startswith(".. index::"):
             return True
 
         l2 = self.peek(1).strip()  # ---------- or ==========
         if len(l2) >= 3 and (set(l2) in ({"-"}, {"="})) and len(l2) != len(l1):
-            snip = "\n".join(self._str[:2]) + "..."
-            # self._error_location(
-            #     f"potentially wrong underline length... \n{l1} \n{l2} in \n{snip}",
-            #     error=False,
-            # )
+            # TODO: add as error
+            pass
         return l2.startswith("-" * len(l1)) or l2.startswith("=" * len(l1))
 
-    def read_to_next_section(self):
-        section = self.read_to_next_empty_line()
+    def read_next(self):
+        line = self._lines[self._current_line]
+        self._current_line += 1
+        return line
 
+    def read_to_next_header(self):
+        result = [self.read_next()]
         while not self.is_at_section() and not self.eof():
-            if not self.peek(-1).strip():  # previous line was empty
-                section += [""]
-
-            section += self.read_to_next_empty_line()
-
-        return section
+            result.append(self.read_next())
+        return result
 
     def peek(self, n=0):
-        if self._l + n < len(self._str):
-            return self[self._l + n]
+        if 0 <= self._current_line + n < len(self._lines):
+            return self[self._current_line + n]
         else:
             return ""
 
     def is_empty(self):
-        return not "".join(self._str).strip()
+        return not "".join(self._lines).strip()
 
 
 def strip_empty_lines(contents):
@@ -226,152 +192,6 @@ class ParseError(Exception):
         return message
 
 
-@dataclass
-class Pos:
-    """Represent a Line:Column position."""
-
-    line: int
-    column: int
-
-    def move_line(self, *, line=None, column=None):
-        return Pos(
-            self.line + line if line is not None else self.line,
-            column if column is not None else self.column,
-        )
-
-    def move_column(self, *, line=None, column=None):
-        return Pos(
-            line if line is not None else self.line,
-            self.column + column if column is not None else self.column,
-        )
-
-    def move(self, *, line=None, column=None, absolute_line=None, absolute_column=None):
-        if line is not None:
-            line = self.line + line
-        elif absolute_line is not None:
-            line = absolute_line
-        else:
-            line = self.line
-
-        if column is not None:
-            column = self.column + column
-        elif absolute_column is not None:
-            column = absolute_column
-        else:
-            column = self.column
-        return Pos(line, column)
-
-    def normalize(self, relative: "Pos"):
-        return Pos(
-            line=self.line - relative.line,
-            column=self.column,
-        )
-
-
-@dataclass(frozen=True, kw_only=True)
-class DocStringParagraph:
-    start: Pos
-    end: Pos
-    data: list[str]
-
-
-@dataclass(frozen=True, kw_only=True)
-class DocStringSummary:
-    content: DocStringParagraph
-    extended_content: DocStringParagraph
-
-
-@dataclass(frozen=True, kw_only=True)
-class DocStringName:
-    start: Pos
-    end: Pos
-    value: str
-
-    def __len__(self):
-        return len(self.value)
-
-
-@dataclass(frozen=True, kw_only=True)
-class DocStringParameter:
-    start: Pos
-    end: Pos
-    header: str
-    name: DocStringName
-    types: DocStringName
-    optional: int
-    description: DocStringParagraph
-
-
-@dataclass(frozen=True, kw_only=True)
-class DocStringParameters:
-    header: str
-    parameters: List[DocStringParameter]
-
-
-@dataclass(frozen=True, kw_only=True)
-class DocStringSection:
-    start_header: Pos
-    end_header: Pos
-    name: str
-    valid_heading: bool
-    contents: List[str | DocStringParameter]
-    start_contents: Pos
-    end_contents: Pos
-
-    def __eq__(self, other) -> bool:
-        if isinstance(other, str):
-            return self.name == other
-        else:
-            return self.name == other.name
-
-    def __hash__(self):
-        return hash(self.name)
-
-
-@dataclass(frozen=True, kw_only=True)
-class Parameter:
-    start: Pos
-    end: Pos
-    name: str
-    default: str = None  # For future --fix
-    annotation: str = None
-    star_count: int
-
-    @property
-    def iskwargs(self):
-        return self.star_count == 2
-
-    @property
-    def isargs(self):
-        return self.star_count == 1
-
-
-@dataclass(frozen=True, kw_only=True)
-class Error:
-    line: int
-    column: int
-    message: str
-    abort: bool = False
-
-
-class Errors:
-    def __init__(self):
-        self._errors = []
-
-    def flag(self, *, message, line=None, column=None, abort=False):
-        self._errors.append(
-            Error(line=line, column=column, message=message, abort=abort)
-        )
-
-    @property
-    def any_fatal(self):
-        return any(error.abort for error in self._errors)
-
-    @property
-    def any_errors(self):
-        return len(self._errors) > 0
-
-
 _PYTHON_VERSION = "{}.{}.{}".format(*sys.version_info)
 
 
@@ -393,10 +213,11 @@ def _format_raw_doc(doc: str):
     else:
         doc = doc.encode("utf-8").decode("unicode_escape")
 
+    doc = doc[:first_delim] + doc[first_delim + first_delim_len : last_delim - 2]
     return (
         first_delim,
-        doc_lines,
-        doc[:first_delim] + doc[first_delim + first_delim_len : last_delim - 2],
+        doc.splitlines(),
+        doc,
     )
 
 
@@ -444,16 +265,18 @@ _LINE_PATTERN = re.compile(
 )
 
 
+# TODO: proper return value
 def _parse_see_also(
     data: List[str],
     *,
     start: Pos,
     indent: int,
-    errors: Errors,
+    errors: List[Error],
 ) -> List[DocStringParameter]:
     def parse_item_name(text):
         match = _FUNC_PATTERN.match(text)
         if not match:
+            # TODO: add as error
             raise ParseError(f"Failed to parse {text}")
 
         role = match.group("role")
@@ -501,9 +324,10 @@ def _parse_see_also(
             # 2) rest as DocStringParagraph
             items.append((funcs, rest))
         else:
-            errors.flag(
-                message="Error parsing See also", line=start.line + i, abort=True
-            )
+            pass
+            # errors.flag(
+            #     message="Error parsing See also", line=start.line + i, abort=True
+            # )
 
     return items
 
@@ -528,7 +352,7 @@ def _parse_parameter_list(
     params = []
     reader = Reader([line[indent:] for line in data])
     while not reader.eof():
-        parameter_start = start.move(line=reader._l)
+        parameter_start = start.move(line=reader._current_line)
         header_str = reader.read()
         if not header_str.strip():
             continue
@@ -536,8 +360,12 @@ def _parse_parameter_list(
         header = re.match(_NAME_TYPE_PATTERN, header_str)
         if header.group("name"):
             name = DocStringName(
-                start=start.move(line=reader._l + 1, column=header.start("name")),
-                end=start.move(line=reader._l + 1, column=header.end("name")),
+                start=start.move(
+                    line=reader._current_line + 1, column=header.start("name")
+                ),
+                end=start.move(
+                    line=reader._current_line + 1, column=header.end("name")
+                ),
                 value=header.group("name"),
             )
         else:
@@ -549,11 +377,11 @@ def _parse_parameter_list(
             for type in re.finditer(_TYPE_PATTERN, header.group("type")):
                 type = DocStringName(
                     start=start.move(
-                        line=reader._l + 1,
+                        line=reader._current_line + 1,
                         column=header.start("type") + type.start(1),
                     ),
                     end=start.move(
-                        line=reader._l + 1,
+                        line=reader._current_line + 1,
                         column=header.start("type") + type.end(1),
                     ),
                     value=type.group(1),
@@ -569,19 +397,19 @@ def _parse_parameter_list(
         if types is None and single_element_is_type:
             name, types = None, [name]
 
-        description_start = start.move(line=reader._l)
+        description_start = start.move(line=reader._current_line)
         description = reader.read_to_next_unindented_line()
         params.append(
             DocStringParameter(
                 start=parameter_start,
-                end=start.move(line=reader._l),
+                end=start.move(line=reader._current_line),
                 header=header_str,
                 name=name,
                 types=types,
                 optional=optional,
                 description=DocStringParagraph(
                     start=description_start,
-                    end=start.move(line=reader._l),
+                    end=start.move(line=reader._current_line),
                     data=description,
                 ),
             )
@@ -590,204 +418,205 @@ def _parse_parameter_list(
     return params
 
 
-class DocString:
-    def __init__(self, node=parso.python.tree.Node) -> None:
-        self._node = node
-        self._start = Pos(node.start_pos[0], node.start_pos[1] + 1)
-        self._end = Pos(node.end_pos[0], node.end_pos[1] + 1)
-        self._indent, self._docstring_lines, self._raw_docstring = _format_raw_doc(
-            node.get_code()
-        )
-        self._reader = Reader(self._raw_docstring)
+def _parse_summary_extended_summary(reader: Reader, start: Pos) -> DocStringSummary:
+    summary = DocStringParagraph(
+        start=start,
+        end=start.move(line=reader._current_line),
+        data=reader.read_to_next_blank(),
+    )
+    extended_start = start.move(line=reader._current_line)
+    extended_data = reader.read_to_eof()
+    extended_content = DocStringParagraph(
+        start=extended_start,
+        end=start.move(line=reader._current_line),
+        data=extended_data,
+    )
 
-        self._docstring_lines = None
-        self._sections = None
-        self._summary = None
-        self._extended_summary = None
+    return DocStringSummary(content=summary, extended_content=extended_content)
 
-    @property
-    def extended_summary(self):
-        self.summary
-        return self._extended_summary
 
-    @property
-    def summary(self) -> DocStringSummary:
-        if self._summary is None:
-            reader = self._reader
-            reader.reset()
-            if reader.is_at_section():
-                self._summary = DocStringSummary(content=None, extended_content=None)
-            else:
-                start = self.start.move_line(line=reader._l)
-                while True:
-                    content = reader.read_to_next_empty_line()
-                    summary_str = " ".join([s.strip() for s in content]).strip()
-                    if SUMMARY_SIGNATURE_PATTERN.match(summary_str):
-                        if not reader.is_at_section():
-                            continue
-                    else:
-                        break
-                content = DocStringParagraph(
-                    start=start, end=self.start.move(line=reader._l), data=content
+def _parse_summary(*, reader: Reader, start: Pos) -> DocStringSummary:
+    if reader.is_at_section():
+        summary = DocStringSummary(content=None, extended_content=None)
+    else:
+        start = start.move_line(line=reader._current_line)
+        content = reader.read_to_next_header()
+        summary = _parse_summary_extended_summary(Reader(content), start)
+    return summary
+
+
+def _parse_sections(
+    *,
+    reader: Reader,
+    errors: List[Error],
+    start: Pos,
+    indent: int,
+) -> list[DocStringSection]:
+    sections = {}
+    while not reader.eof():
+        line = reader._current_line
+
+        if reader.peek(-1).strip():
+            errors.append(
+                Error(
+                    start=start.move(line=line),
+                    code="ER01",
+                    message="Missing blank line before section",
                 )
-                if not reader.is_at_section():
-                    start = self.start.move(line=reader._l)
-                    extended_content = reader.read_to_next_section()
-                    extended_content = DocStringParagraph(
-                        start=start,
-                        end=self.start.move(line=reader._l),
-                        data=extended_content,
+            )
+            # errors.flag(
+            #     "ER01",
+            #     "Missing blank line before section `{}`".format(reader.peek().strip()),
+            #     line=start.move(line=line),
+            # )
+
+        data = reader.read_to_next_header()
+        if not data:
+            sections = []
+            break
+
+        column = len(data[0]) - len(data[0].lstrip()) + 1
+
+        if len(data) > 1:
+            name = data[0].strip()
+            underline = data[1].strip()
+            if len(name) == len(underline):
+                valid = re.match(r"^-*$", underline) and len(name) == len(underline)
+
+                if name in (
+                    "Parameters",
+                    "Other Parameters",
+                    "Attributes",
+                    "Methods",
+                ):
+                    contents = _parse_parameter_list(
+                        data[2:],
+                        start=start.move(line=line),
+                        indent=indent,
+                    )
+                elif name in (
+                    "Returns",
+                    "Yields",
+                    "Raises",
+                    "Warns",
+                    "Receives",
+                ):
+                    contents = _parse_parameter_list(
+                        data[2:],
+                        start=start.move(line=line),
+                        indent=indent,
+                        single_element_is_type=True,
+                    )
+                elif name == "See Also":
+                    contents = _parse_see_also(
+                        data[2:],
+                        start=start.move(line=line),
+                        errors=errors,
+                        indent=indent,
                     )
                 else:
-                    extended_content = None
-
-                self.start.move_line(line=reader._l)
-                self._summary = DocStringSummary(
-                    content=content, extended_content=extended_content
+                    contents = strip_empty_lines(data[:2])  # TODO: skip
+                sections[name] = DocStringSection(
+                    name=name,
+                    valid_heading=valid,
+                    start_header=start.move_line(line=line, column=column),
+                    end_header=start.move_line(line=line, column=column + len(name)),
+                    contents=contents,
+                    start_contents=start.move_line(line=line),
+                    end_contents=start.move_line(line=len(data) - 2),
                 )
+    return sections
 
-        return self._summary
 
-    @property
-    def sections(self) -> list[DocStringSection]:
-        if self._sections is None:
-            self._sections = []
-            self._reader.reset()
-            while not self._reader.eof():
-                line = self._reader._l
-                data = self._reader.read_to_next_section()
-                if not data:
-                    self._sections = []
-                    break
-
-                # TODO: consider self.indent
-                column = len(data[0]) - len(data[0].lstrip()) + 1
-
-                if len(data) > 1:
-                    name = data[0].strip()
-                    underline = data[1].strip()
-                    if len(name) == len(underline):
-                        valid_heading = re.match(r"^-*$", data[1]) is not None
-                        if name in (
-                            "Parameters",
-                            "Other Parameters",
-                            "Attributes",
-                            "Methods",
-                        ):
-                            contents = _parse_parameter_list(
-                                data[2:],
-                                start=self.start.move(line=line),
-                                indent=self.indent,
-                            )
-                        elif name in (
-                            "Returns",
-                            "Yields",
-                            "Raises",
-                            "Warns",
-                            "Receives",
-                        ):
-                            contents = _parse_parameter_list(
-                                data[2:],
-                                start=self.start.move(line=line),
-                                indent=self.indent,
-                                single_element_is_type=True,
-                            )
-                        elif name == "See Also":
-                            errors = Errors()
-                            contents = _parse_see_also(
-                                data[2:],
-                                start=self.start.move(line=line),
-                                errors=errors,
-                                indent=self.indent,
-                            )
-                        else:
-                            contents = strip_empty_lines(data[:2])
-                        self._sections.append(
-                            DocStringSection(
-                                name=name,
-                                valid_heading=valid_heading,
-                                start_header=self.start.move_line(
-                                    line=line, column=column
-                                ),
-                                end_header=self.start.move_line(
-                                    line=line, column=column + len(name)
-                                ),
-                                contents=contents,
-                                start_contents=self.start.move_line(line=line),
-                                end_contents=self.start.move_line(line=len(data) - 2),
-                            )
-                        )
-
-        return self._sections
-
-    def get_section(self, name) -> Optional[DocStringSection]:
-        for section in self.sections:
-            if section.name == name:
-                return section
-
-        return None
-
-    @property
-    def raw(self) -> str:
-        return self._raw_docstring
-
-    @property
-    def lines(self) -> list[str]:
-        if self._docstring_lines is None:
-            self._docstring_lines = self.raw.split("\n")
-        return self._docstring_lines
-
-    @property
-    def indent(self) -> int:
-        return self._indent
-
-    @property
-    def start(self) -> Pos:
-        return self._start
-
-    @property
-    def end(self) -> Pos:
-        return self._end
+def parse_docstring(node: parso.python.tree.Node) -> Tuple[DocString, List[Error]]:
+    errors = []
+    start = Pos(node.start_pos[0], node.start_pos[1] + 1)
+    end = Pos(node.end_pos[0], node.end_pos[1] + 1)
+    indent, lines, raw = _format_raw_doc(node.get_code())
+    print(lines)
+    reader = Reader(lines)
+    summary = _parse_summary(reader=reader, start=start)
+    sections = _parse_sections(reader=reader, errors=errors, start=start, indent=indent)
+    return (
+        DocString(
+            start=start,
+            end=end,
+            indent=indent,
+            summary=summary,
+            sections=sections,
+            raw=raw,
+            lines=lines,
+        ),
+        errors,
+    )
 
 
 class Node(metaclass=ABCMeta):
-    def __init__(self, node):
+    def __init__(self, node, filename):
         self.node = node
-        docstring_node = _get_docstring_node(self.node)
-        if docstring_node is not None:
-            self._docstring = DocString(docstring_node)
-        else:
-            self._docstring = None
+        self.docstring_node = _get_docstring_node(self.node)
+        # if docstring_node is not None:
+        #     self._docstring = parse_docstring(docstring_node)
+        # else:
+        #     self._docstring = None
 
+        self._name = None
+        self.filename = filename
         self._noqa = []
+
+    def parse_docstring(self) -> Tuple[Optional[DocString], List[Error]]:
+        return (
+            parse_docstring(self.docstring_node)
+            if self.docstring_node is not None
+            else (
+                None,
+                [
+                    Error(
+                        start=self.start,
+                        end=self.end,
+                        code="GL08",
+                        message="Missing docstring in public method",
+                    )
+                ],
+            )
+        )
 
     @property
     def private(self):
-        return self.name and self.name.startswith("_") and not self.magic
+        return (
+            self.name
+            and self.name.value
+            and self.name.value.startswith("_")
+            and not self.magic
+        )
 
     @property
     def magic(self):
-        return self.name and self.name in _MAGIC_METHODS
+        return self.name and self.name.value and self.name.value in _MAGIC_METHODS
 
     @property
     def has_docstring(self):
-        return self._docstring is not None
+        return self.docstring_node is not None
 
     @property
     def noqa(self) -> List[str]:
         return self._noqa
-
-    @property
-    def docstring(self):
-        return self._docstring
 
     @abstractproperty
     def type(self):
         pass
 
     @property
-    def name(self):
-        return self.node.name.value
+    def name(self) -> Name:
+        if self._name is None:
+            start_line, start_col = self.node.name.start_pos
+            end_line, end_col = self.node.name.end_pos
+            self._name = Name(
+                value=self.node.name.value,
+                start=Pos(start_line, start_col + 1),
+                end=Pos(end_line, end_col + 1),
+            )
+        return self._name
 
     @property
     def start(self):
@@ -812,8 +641,8 @@ def _find_noqa(prefix: str) -> List[str]:
 
 
 class Module(Node):
-    def __init__(self, node):
-        super().__init__(node)
+    def __init__(self, node, filename):
+        super().__init__(node, filename)
         if self.has_docstring:
             child = self.node.children[0]
             if child.type == "simple_stmt":
@@ -830,8 +659,8 @@ class Module(Node):
 
 
 class Constant(Node):
-    def __init__(self, node):
-        super().__init__(node)
+    def __init__(self, node, filename):
+        super().__init__(node, filename)
         child = self.node.children[0]
         self._noqa = _find_noqa(child.prefix)
 
@@ -863,8 +692,8 @@ def _wrap_parameters(params: List[parso.python.tree.Param]):
 
 
 class Class(Node):
-    def __init__(self, node):
-        super().__init__(node)
+    def __init__(self, node, filename):
+        super().__init__(node, filename)
         child = self.node.children[0]
         self._noqa = _find_noqa(child.prefix)
 
@@ -891,8 +720,8 @@ class Class(Node):
 
 
 class FunctionDocstring(Node):
-    def __init__(self, node):
-        super().__init__(node)
+    def __init__(self, node, filename):
+        super().__init__(node, filename)
         child = self.node.children[0]
         self._noqa = _find_noqa(child.prefix)
 
@@ -928,30 +757,10 @@ class Method(FunctionDocstring):
 
 
 class Parser:
-    """[TODO:description].
-
-    Attributes
-    ----------
-    python_version : [TODO:attribute]
-
-    Parameters
-    ----------
-    python_version : str
-        Python version on the format "major.minor.micro".
-    """
-
     def __init__(self, python_version=None) -> None:
         self.python_version = python_version or _PYTHON_VERSION
 
     def _load_grammar(self) -> parso.Grammar:
-        """
-        Parse the code using the grammar of the currently running Python interpreter.
-
-        Returns
-        -------
-        parso.Grammar
-            The grammar for the current Python version.
-        """
         return parso.load_grammar(version=self.python_version)
 
     def _parse(self, code: str) -> Optional[parso.tree.BaseNode]:
@@ -977,18 +786,20 @@ class Parser:
 
         return node
 
-    def iter_docstring(self, code: str):
+    def iter_docstring(self, file):
+        code = file.read()
+        filename = file.name if hasattr(file, "name") else "<unkown>"
         module = self._parse(code).get_root_node()
-        yield Module(module)
+        yield Module(module, filename)
 
         # FIXME
         # for const in module._search_in_scope("expr_stmt"):
         #     yield Constant(const)
 
         for func in module.iter_funcdefs():
-            yield FunctionDocstring(func)
+            yield FunctionDocstring(func, filename)
 
         for klass in module.iter_classdefs():
-            yield Class(klass)
+            yield Class(klass, filename)
             for func in klass.iter_funcdefs():
-                yield Method(func)
+                yield Method(func, filename)

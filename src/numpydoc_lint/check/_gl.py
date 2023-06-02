@@ -2,10 +2,7 @@ import itertools
 import re
 from typing import Generator, Optional
 
-from ..numpydoc import (
-    DocStringParagraph,
-    Node,
-)
+from ..numpydoc import DocStringParagraph, Node, DocString
 from ._base import Check, Error, empty_prefix_lines, empty_suffix_lines
 
 _ALLOWED_SECTIONS = [
@@ -40,16 +37,16 @@ def _find_deprectated(paragraph: DocStringParagraph):
 class GL01(Check):
     """Check for too many/few empty prefix lines."""
 
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        doc = node.docstring
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
         if (
             node.has_docstring
-            and empty_prefix_lines(doc.lines) != 1
-            and "\n" in doc.raw
+            and empty_prefix_lines(docstring.lines) != 1
+            and "\n" in docstring.raw
         ):
             yield Error(
-                docstring=doc,
-                start=doc.start,
+                start=docstring.start,
                 code="GL01",
                 message="Docstring should start on a new line.",
             )
@@ -57,12 +54,12 @@ class GL01(Check):
 
 # TODO: Incorrectly flagged if docstring start on the same line as """.
 class GL02(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        doc = node.docstring
-        if empty_suffix_lines(doc.lines) != 1 and "\n" in doc.raw:
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if empty_suffix_lines(docstring.lines) != 1 and "\n" in docstring.raw:
             yield Error(
-                start=doc.end.move_line(line=-1),
-                docstring=doc,
+                start=docstring.end.move_line(line=-1),
                 code="GL02",
                 message="Docstring should end one line before the closing quotes.",
                 suggestion="Remove empty line.",
@@ -70,14 +67,13 @@ class GL02(Check):
 
 
 class GL03(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        doc = node.docstring
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
         prev = True
-        for i, row in enumerate(doc.lines):
-            if not prev and not row.strip() and i < len(doc.lines) - 1:
+        for i, row in enumerate(docstring.lines):
+            if not prev and not row.strip() and i < len(docstring.lines) - 1:
                 yield Error(
-                    start=doc.start.move_line(line=i),
-                    docstring=doc,
                     code="GL03",
                     message="Docstring should not contain double line breaks.",
                 )
@@ -86,27 +82,24 @@ class GL03(Check):
 
 
 class GL04(Check):
-    def _validate(self, node: Node) -> Optional[Error]:
-        doc = node.docstring
-        for i, line in enumerate(doc.lines):
+    def _validate(self, node: Node, docstring: DocString) -> Optional[Error]:
+        for i, line in enumerate(docstring.lines):
             first = next(re.finditer("^\s*(\t)", line), None)
             if first:
                 yield Error(
-                    start=doc.start.move_line(line=i, column=first.start(0)),
-                    end=doc.start.move_line(line=i, column=first.end(0)),
-                    docstring=doc,
+                    end=docstring.start.move_line(line=i, column=first.end(0)),
                     code="GL04",
                     message="Docstring line should not start with tabs.",
                 )
 
 
 class GL06(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        doc = node.docstring
-        for section in doc.sections:
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        for section in docstring.sections.values():
             if section.name not in _ALLOWED_SECTIONS:
                 yield Error(
-                    docstring=doc,
                     start=section.start_header,
                     end=section.end_header,
                     code="GL06",
@@ -116,18 +109,20 @@ class GL06(Check):
 
 
 class GL07(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        doc = node.docstring
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
         expected_sections = [
-            section for section in _ALLOWED_SECTIONS if section in doc.sections
+            section for section in _ALLOWED_SECTIONS if section in docstring.sections
         ]
         actual_sections = [
-            section for section in doc.sections if section.name in _ALLOWED_SECTIONS
+            section
+            for section in docstring.sections.values()
+            if section.name in _ALLOWED_SECTIONS
         ]
         for expected_section, actual_section in zip(expected_sections, actual_sections):
             if expected_section != actual_section.name:
                 yield Error(
-                    docstring=doc,
                     start=actual_section.start_header,
                     end=actual_section.end_header,
                     code="GL07",
@@ -139,55 +134,41 @@ class GL07(Check):
 class GL08(Check):
     """Check that the class/function/module has a docstring."""
 
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
         return
         yield
 
     def validate(self, node: Node) -> Generator[Error, None, None]:
-        """
-        Validate the docstring.
-
-        Parameters
-        ----------
-        node : Node
-            The node.
-
-        Returns
-        -------
-        Generator[Error, None, None]
-            [TODO:description]
-        """
         if not node.has_docstring:
             yield Error(
                 start=node.start,
-                end=node.start,
-                docstring=None,
                 code="GL08",
                 message=f"{node.type.capitalize()} does not have a docstring",
-                terminate=True,
             )
 
 
 class GL09(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        doc = node.docstring
-        if doc.summary:
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if docstring.summary:
             deprecated_markers = list(
                 itertools.chain(
-                    _find_deprectated(doc.summary.content),
-                    _find_deprectated(doc.summary.extended_content),
+                    _find_deprectated(docstring.summary.content),
+                    _find_deprectated(docstring.summary.extended_content),
                 )
             )
 
             if deprecated_markers:
                 paragraph = (
-                    doc.summary.extended_content
-                    if doc.summary.extended_content is not None
-                    else doc.summary
+                    docstring.summary.extended_content
+                    if docstring.summary.extended_content is not None
+                    else docstring.summary
                 )
                 if deprecated_markers[0].line != paragraph.start.line:
                     yield Error(
-                        docstring=doc,
                         start=deprecated_markers[0],
                         end=deprecated_markers[0].move(column=15),
                         code="GL09",
@@ -200,20 +181,21 @@ class GL09(Check):
 
 # TODO: Extended
 class GLE01(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        doc = node.docstring
-        if doc.summary:
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if docstring.summary:
             marks = list(
                 itertools.chain(
-                    _find_deprectated(doc.summary.content),
-                    _find_deprectated(doc.summary.extended_content),
+                    _find_deprectated(docstring.summary.content),
+                    _find_deprectated(docstring.summary.extended_content),
                 )
             )
             if len(marks) > 1:
                 paragraph = (
-                    doc.summary.extended_content
-                    if doc.summary.extended_content is not None
-                    else doc.summary
+                    docstring.summary.extended_content
+                    if docstring.summary.extended_content is not None
+                    else docstring.summary
                 )
                 offenders = [
                     mark for mark in marks if mark.line != paragraph.start.line
@@ -229,7 +211,6 @@ class GLE01(Check):
 
                 for mark in offenders:
                     yield Error(
-                        docstring=doc,
                         start=mark,
                         end=mark.move(column=15),
                         code="GL11",
@@ -244,15 +225,15 @@ class GLE01(Check):
 
 
 class GL10(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        doc = node.docstring
-        for i, line in enumerate(doc.lines):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        for i, line in enumerate(docstring.lines):
             match = re.match(DIRECTIVE_PATTERN, line)
             if match:
                 yield Error(
-                    docstring=doc,
-                    start=doc.start.move(line=i, absolute_column=match.start(1)),
-                    end=doc.start.move(line=i, absolute_column=match.end(1) + 1),
+                    start=docstring.start.move(line=i, absolute_column=match.start(1)),
+                    end=docstring.start.move(line=i, absolute_column=match.end(1) + 1),
                     code="GL10",
                     message="reST directives must be followed by two colon.",
                     suggestion="Fix the directive by inserting `::`",

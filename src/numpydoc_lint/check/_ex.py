@@ -1,17 +1,19 @@
 from typing import Generator
 
-from ..numpydoc import Node
+from ..numpydoc import Node, DocString
 from ._base import Check, Error
 
 
 class EX01(Check):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
-        docstring = node.docstring
-        if not docstring.get_section("Examples"):
+    def _validate(
+        self,
+        node: Node,
+        docstring: DocString,
+    ) -> Generator[Error, None, None]:
+        if not docstring.sections.get("Examples"):
             yield Error(
-                docstring=node.docstring,
-                start=node.docstring.start,
-                end=node.docstring.end,
+                start=docstring.start,
+                end=docstring.end,
                 code="EX01",
                 message="No examples section found.",
                 suggestion="Add a Examples section",

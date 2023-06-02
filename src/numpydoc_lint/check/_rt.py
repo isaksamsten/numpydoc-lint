@@ -12,10 +12,12 @@ from ._base import (
 
 
 class ReturnCheck(Check, metaclass=ABCMeta):
-    def _validate(self, node: Node) -> Generator[Error, None, None]:
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
         if node.type in ("function", "method"):
             yield from self._validate_returns(
-                node.docstring,
+                docstring,
                 node.returns,
             )
 
@@ -34,10 +36,9 @@ class RT01(ReturnCheck):
         docstring: DocString,
         n_returns: int,
     ) -> Generator[Error, None, None]:
-        returns = docstring.get_section("Returns")
+        returns = docstring.sections.get("Returns")
         if n_returns > 0 and not returns:
             yield Error(
-                docstring=docstring,
                 start=docstring.end,
                 end=docstring.end,
                 code="RT01",
@@ -52,7 +53,7 @@ class RT02(ReturnCheck):
         docstring: DocString,
         n_returns: int,
     ) -> Generator[Error, None, None]:
-        returns = docstring.get_section("Returns")
+        returns = docstring.sections.get("Returns")
         if (
             returns
             and len(returns.contents) == 1
@@ -60,7 +61,6 @@ class RT02(ReturnCheck):
         ):
             ret = returns.contents[0]
             yield Error(
-                docstring=docstring,
                 start=ret.name.start,
                 end=ret.name.end,
                 code="RT02",
@@ -75,7 +75,7 @@ class ReturnDescriptionCheck(ReturnCheck, metaclass=ABCMeta):
         docstring: DocString,
         n_returns: int,
     ) -> Generator[Error, None, None]:
-        returns = docstring.get_section("Returns")
+        returns = docstring.sections.get("Returns")
         if returns:
             for ret in returns.contents:
                 yield from self._validate_parameter_description(docstring, ret)

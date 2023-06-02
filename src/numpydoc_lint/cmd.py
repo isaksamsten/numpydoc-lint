@@ -2,7 +2,7 @@
 import tomli
 import sys
 from pathlib import Path
-from argparse import ArgumentParser, FileType
+from argparse import ArgumentParser
 from typing import Optional, List, Mapping
 from .numpydoc import Parser
 from .validate import _CHECKS, DetailedErrorFormatter, ErrorFormatter, Validator, Check
@@ -67,7 +67,7 @@ class Config:
         return str(self.__dict__)
 
 
-def _config_from_pyproject(file):
+def _config_from_pyproject(file: Path):
     def _find_pyproject(path):
         if path.is_file():
             path = path.parent
@@ -80,10 +80,7 @@ def _config_from_pyproject(file):
         else:
             return _find_pyproject(path.parent)
 
-    pyproject = _find_pyproject(Path(file))
-
-    if pyproject is None:
-        pyproject = _find_pyproject(Path("."))
+    pyproject = _find_pyproject(file)
 
     if pyproject:
         cfg = tomli.load(pyproject.open(mode="rb"))
@@ -105,9 +102,23 @@ def _config_from_pyproject(file):
     return C()
 
 
+def _validate(file, *, parser, config, error_formatter, filename=None):
+    for node in parser.iter_docstring(file):
+        validator = Validator(
+            include_private=config.include_private,
+            exclude_magic=config.exclude_magic,
+            checks=config.get_checks(),
+        )
+
+        for error in validator.validate(node):
+            error_formatter.add_error(
+                filename if filename is not None else file.name, node, error
+            )
+
+
 def run() -> None:
     parser = ArgumentParser(prog="numpydoc_lint", description="Lint numpydoc comments")
-    parser.add_argument("input", nargs="*", type=FileType("r"), default=[sys.stdin])
+    parser.add_argument("input", nargs="?", default="-")
     parser.add_argument("--format", choices=["simple", "full"], default="simple")
     parser.add_argument("--ignore", nargs="*")
     parser.add_argument("--select", nargs="*")
@@ -124,30 +135,53 @@ def run() -> None:
         include_private=args.include_private,
         exclude_magic=args.exclude_magic,
     )
-    docstring = Parser()
+    parser = Parser()
     error_formatter = _ERROR_FORMATTERS[args.format]()
-    for input in args.input:
-        filename = input.name
-        if input.name == "<stdin>" and args.stdin_filename is not None:
-            filename = args.stdin_filename
+    if args.input == "-":
+        if args.stdin_filename is not None:
+            filename = Path(args.stdin_filename)
+        else:
+            filename = None
 
-        if not config.is_defined:
+        if not config.is_defined and filename and filename.exists():
             config = _config_from_pyproject(filename)
 
-        if config.exclude and filename in config.exclude:
-            continue
+        _validate(
+            sys.stdin,
+            parser=parser,
+            config=config,
+            error_formatter=error_formatter,
+        )
+    else:
+        root = Path(args.input)
+        if not root.exists():
+            print("Path does not exist.", file=sys.stderr)
+            sys.exit(2)
 
-        for node in docstring.iter_docstring(input.read()):
-            validator = Validator(
-                node,
-                include_private=config.include_private,
-                exclude_magic=config.exclude_magic,
-                checks=config.get_checks(),
-            )
+        if not config.is_defined:
+            config = _config_from_pyproject(root)
 
-            for error in validator.validate():
-                error_formatter.add_error(filename, error)
+        print(config)
+        if root.is_file():
+            with root.open("r", encoding="utf-8") as file:
+                _validate(
+                    file,
+                    parser=parser,
+                    config=config,
+                    error_formatter=error_formatter,
+                )
+        else:
+            for path in root.rglob("*.py"):
+                if config.exclude and filename in config.exclude:
+                    continue
 
+                with path.open("r", encoding="utf-8") as file:
+                    _validate(
+                        file,
+                        parser=parser,
+                        config=config,
+                        error_formatter=error_formatter,
+                    )
     error_formatter.write(sys.stdout)
     if error_formatter.has_errors:
         print("Found {} errors.".format(error_formatter.errors))

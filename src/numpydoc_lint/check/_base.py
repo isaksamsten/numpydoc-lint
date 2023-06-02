@@ -1,13 +1,13 @@
 import re
 from abc import ABCMeta, abstractmethod
-from typing import Generator, List
+from typing import Generator, List, Optional
 
 from ..numpydoc import (
     DocString,
     DocStringParameter,
     Node,
-    Pos,
 )
+from .._model import Error
 
 DIRECTIVES = ["versionadded", "versionchanged", "deprecated"]
 DIRECTIVE_PATTERN = re.compile(
@@ -15,61 +15,17 @@ DIRECTIVE_PATTERN = re.compile(
 )
 
 
-class Error:
-    def __init__(
-        self,
-        *,
-        docstring: DocString,
-        start: Pos = None,
-        end: Pos = None,
-        code: str = None,
-        message: str = None,
-        suggestion: str = None,
-        terminate: str = False,
-    ) -> None:
-        self.docstring = docstring
-        self.start = start if start is not None else docstring.start
-        self.end = end if end is not None else docstring.end
-        self._code = code
-        self._message = message
-        self._suggestion = suggestion
-        self._terminate = terminate
-
-    @property
-    def code(self):
-        return self._code if self._code is not None else self.__class__.__name__.upper()
-
-    @property
-    def message(self):
-        return self._message
-
-    @property
-    def suggestion(self):
-        return self._suggestion
-
-    @property
-    def terminate(self) -> bool:
-        """
-        If the error terminates the remaining checks.
-
-        Returns
-        -------
-        bool
-            `True` if the remaining checks should be skipped; `False`
-            otherwise.
-        """
-        return self._terminate
-
-
 class Check(metaclass=ABCMeta):
     """Abstract docstring check."""
 
     @abstractmethod
-    def _validate(self, doc: Node) -> Generator[Error, None, None]:
+    def _validate(
+        self, doc: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
         return
         yield
 
-    def validate(self, doc: Node) -> Generator[Error, None, None]:
+    def validate(self, doc: Node, docstring: DocString) -> Generator[Error, None, None]:
         """
         Ensure that the docstring is valid.
 
@@ -84,7 +40,7 @@ class Check(metaclass=ABCMeta):
             The error.
         """
         if doc.has_docstring:
-            yield from self._validate(doc)
+            yield from self._validate(doc, docstring)
 
 
 def _before_directive(lines: List[str]) -> List[str]:
@@ -113,7 +69,6 @@ def _validate_parameter_has_description(
     ):
         name = parameter.name if parameter.name is not None else parameter.types[0]
         yield Error(
-            docstring=docstring,
             start=name.start,
             end=name.end,
             code=code,
@@ -137,7 +92,6 @@ def _validate_parameter_description_start_uppercase(
         if first and first[0].isalpha() and not first[0].isupper():
             name = parameter.name if parameter.name is not None else parameter.types[0]
             yield Error(
-                docstring=docstring,
                 start=name.start,
                 end=name.end,
                 code=code,
@@ -174,7 +128,6 @@ def _validate_parameter_description_ends_period(
                     parameter.name if parameter.name is not None else parameter.types[0]
                 )
                 yield Error(
-                    docstring=docstring,
                     start=name.start,
                     end=name.end,
                     code=code,
@@ -197,3 +150,10 @@ def empty_suffix_lines(lines: List[str]):
         if row.strip():
             break
     return i
+
+
+def first_non_blank(lines: List[str]) -> Optional[str]:
+    for line in lines:
+        if not line.strip():
+            return line
+    return None
