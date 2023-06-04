@@ -63,10 +63,10 @@ error[PR06]: Parameter `q` uses wrong type.
 
 # Why numpydoc-lint instead of numpydoc validate?
 
-1. `numpydoc` requires the python module to be compiled, as such its hard to
-   integrate with your editor. `numpydoc-lint` uses the
-   [Parso](https://parso.readthedocs.io) from [Jedi](https://jedi.readthedocs.io) to parse
-   source code.
+1. `numpydoc` requires the python module to be compiled, as such it's hard to
+   integrate with your editor. `numpydoc-lint` uses
+   [Parso](https://parso.readthedocs.io) from
+   [Jedi](https://jedi.readthedocs.io) to parse source code.
 
 2. **TODO** `numpydoc-lint` can be integrated with pre-commit hooks.
 
@@ -89,9 +89,12 @@ Errors that result in incorrectly parsed docstrings.
 
 ### Global warnings
 
-| `GL01` | Not a single blank line after `"""`|
+| Code   | Message                                  |
+| ------ | ---------------------------------------- |
+| `GL01` | Not a single blank line after `"""`      |
 | `GL02` | Not a single blank line before end `"""` |
-| `GL03` | Multiple consecutive line breaks. |
+| `GL03` | Multiple consecutive line breaks.        |
+| `GL04` | No tab characters before first letter.   |
 
 # TODO
 

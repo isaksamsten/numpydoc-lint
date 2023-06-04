@@ -1,6 +1,6 @@
 from common import check_docstring
 from numpydoc_lint._model import Pos
-from numpydoc_lint.check import GL01, GL02, GL03
+from numpydoc_lint.check import GL01, GL02, GL03, GL04
 
 
 def test_GL01_single_line():
@@ -98,4 +98,31 @@ def f():
     pass
 '''
     node, docstring, errors, warnings = check_docstring(code, GL03())
+    assert len(warnings) == 0
+
+
+def test_GL04_tabs():
+    code = '''
+def f():
+    """
+    Summary
+		
+    """
+    pass
+'''
+    node, docstring, errors, warnings = check_docstring(code, GL04())
+    assert len(warnings) == 1
+    assert warnings[0].code == "GL04"
+    assert warnings[0].start == Pos(5, 1)
+
+
+def test_GL04_no_tabs():
+    code = '''
+def f():
+    """
+    Summary
+    """
+    pass
+'''
+    node, docstring, errors, warnings = check_docstring(code, GL04())
     assert len(warnings) == 0

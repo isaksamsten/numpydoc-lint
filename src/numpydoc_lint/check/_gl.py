@@ -93,12 +93,16 @@ class GL03(Check):
 
 
 class GL04(Check):
+    """Validate that the docstring only contain leading spaces."""
+
     def _validate(self, node: Node, docstring: DocString) -> Optional[Error]:
         for i, line in enumerate(docstring.lines):
-            first = next(re.finditer("^\s*(\t)", line), None)
-            if first:
+            for match in re.finditer("^(\t+)", line):
                 yield Error(
-                    end=docstring.start.move_line(line=i, column=first.end(0)),
+                    start=docstring.start.move(
+                        line=i, absolute_column=match.start(1) + 1
+                    ),
+                    end=docstring.start.move(line=i, absolute_column=match.end(1) + 1),
                     code="GL04",
                     message="Docstring line should not start with tabs.",
                 )

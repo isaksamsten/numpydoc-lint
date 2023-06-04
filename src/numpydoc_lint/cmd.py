@@ -53,7 +53,7 @@ class Config:
 
     def is_excluded(self, path: Path):
         """
-        Test.
+        Te.
 
         Parameters
         ----------
