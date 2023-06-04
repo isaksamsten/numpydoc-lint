@@ -5,31 +5,12 @@ from pathlib import Path
 from argparse import ArgumentParser
 from typing import Optional, List, Mapping
 from .numpydoc import Parser
-from .validate import _CHECKS, DetailedErrorFormatter, ErrorFormatter, Validator, Check
+from .validate import DetailedErrorFormatter, ErrorFormatter, Validator, Check, _CHECKS
 
 _ERROR_FORMATTERS = {
     "simple": ErrorFormatter,
     "full": DetailedErrorFormatter,
 }
-
-
-def _get_checks(select, ignore):
-    if select is None or "all" in select:
-        checks = _CHECKS
-    else:
-        checks = {
-            key: value
-            for key, value in _CHECKS.items()
-            if any(key.startswith(select) for select in select)
-        }
-
-    checks = [
-        checks[check]
-        for check in checks.keys()
-        if ignore is None or not any(check.startswith(ignore) for ignore in ignore)
-    ]
-
-    return checks
 
 
 class Config:
@@ -50,8 +31,40 @@ class Config:
 
     def get_checks(self) -> Mapping[str, Check]:
         if self._checks is None:
-            self._checks = _get_checks(self.select, self.ignore)
+            if self.select is None or "all" in self.select:
+                self._checks = _CHECKS
+            else:
+                self._checks = {
+                    key: value
+                    for key, value in _CHECKS.items()
+                    if any(key.startswith(select) for select in self.select)
+                }
+
+            self._checks = [
+                self._checks[check]
+                for check in self._checks.keys()
+                if not self.is_ignored(check)
+            ]
+
         return self._checks
+
+    def is_ignored(self, code):
+        return self.ignore is not None and code in self.ignore
+
+    def is_excluded(self, path: Path):
+        """
+        Test.
+
+        Parameters
+        ----------
+        path : Path
+            The path.
+
+        """
+        return False  # TODO: implement
+
+    def is_selected(self, code):
+        pass
 
     @property
     def is_defined(self):
@@ -111,9 +124,10 @@ def _validate(file, *, parser, config, error_formatter, filename=None):
         )
 
         for error in validator.validate(node):
-            error_formatter.add_error(
-                filename if filename is not None else file.name, node, error
-            )
+            if config.ignore is None or error.code not in config.ignore:
+                error_formatter.add_error(
+                    filename if filename is not None else file.name, node, error
+                )
 
 
 def run() -> None:
@@ -161,7 +175,6 @@ def run() -> None:
         if not config.is_defined:
             config = _config_from_pyproject(root)
 
-        print(config)
         if root.is_file():
             with root.open("r", encoding="utf-8") as file:
                 _validate(

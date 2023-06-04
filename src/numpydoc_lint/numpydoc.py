@@ -166,9 +166,6 @@ class Reader:
         else:
             return ""
 
-    def is_empty(self):
-        return not "".join(self._lines).strip()
-
 
 def strip_empty_lines(contents):
     i = 0
@@ -437,7 +434,7 @@ def _parse_summary_extended_summary(reader: Reader, start: Pos) -> DocStringSumm
 
 def _parse_summary(*, reader: Reader, start: Pos) -> DocStringSummary:
     if reader.is_at_section():
-        summary = DocStringSummary(content=None, extended_content=None)
+        summary = None
     else:
         start = start.move_line(line=reader._current_line)
         content = reader.read_to_next_header()
@@ -456,19 +453,15 @@ def _parse_sections(
     while not reader.eof():
         line = reader._current_line
 
+        # TODO: make the intent more clear with peek.
         if reader.peek(-1).strip():
             errors.append(
                 Error(
                     start=start.move(line=line),
-                    code="ER01",
+                    code="ER02",
                     message="Missing blank line before section",
                 )
             )
-            # errors.flag(
-            #     "ER01",
-            #     "Missing blank line before section `{}`".format(reader.peek().strip()),
-            #     line=start.move(line=line),
-            # )
 
         data = reader.read_to_next_header()
         if not data:
@@ -516,12 +509,16 @@ def _parse_sections(
                     )
                 else:
                     contents = strip_empty_lines(data[:2])  # TODO: skip
+
                 sections[name] = DocStringSection(
-                    name=name,
+                    name=DocStringName(
+                        start=start.move_line(line=line, column=column),
+                        end=start.move_line(line=line, column=column + len(name)),
+                        value=name,
+                    ),
                     valid_heading=valid,
-                    start_header=start.move_line(line=line, column=column),
-                    end_header=start.move_line(line=line, column=column + len(name)),
                     contents=contents,
+                    # TODO: remove and make part of `contents`
                     start_contents=start.move_line(line=line),
                     end_contents=start.move_line(line=len(data) - 2),
                 )
@@ -533,7 +530,6 @@ def parse_docstring(node: parso.python.tree.Node) -> Tuple[DocString, List[Error
     start = Pos(node.start_pos[0], node.start_pos[1] + 1)
     end = Pos(node.end_pos[0], node.end_pos[1] + 1)
     indent, lines, raw = _format_raw_doc(node.get_code())
-    print(lines)
     reader = Reader(lines)
     summary = _parse_summary(reader=reader, start=start)
     sections = _parse_sections(reader=reader, errors=errors, start=start, indent=indent)
@@ -572,9 +568,9 @@ class Node(metaclass=ABCMeta):
                 None,
                 [
                     Error(
-                        start=self.start,
-                        end=self.end,
-                        code="GL08",
+                        start=self.name.start,
+                        end=self.name.end,
+                        code="ER01",
                         message="Missing docstring in public method",
                     )
                 ],
@@ -651,7 +647,9 @@ class Module(Node):
 
     @property
     def name(self):
-        return None
+        if self._name is None:
+            self._name = Name(value="<module>", start=self.start, end=self.start)
+        return self._name
 
     @property
     def type(self):

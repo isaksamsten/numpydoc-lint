@@ -3,7 +3,7 @@ import re
 from typing import Generator, Optional
 
 from ..numpydoc import DocStringParagraph, Node, DocString
-from ._base import Check, Error, empty_prefix_lines, empty_suffix_lines
+from ._base import Check, Error, empty_suffix_lines
 
 _ALLOWED_SECTIONS = [
     "Parameters",
@@ -35,31 +35,37 @@ def _find_deprectated(paragraph: DocStringParagraph):
 
 
 class GL01(Check):
-    """Check for too many/few empty prefix lines."""
+    """Check that multiline docstrings has 1 blank line before summary."""
 
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
         if (
             node.has_docstring
-            and empty_prefix_lines(docstring.lines) != 1
-            and "\n" in docstring.raw
+            and docstring.summary is not None
+            and docstring.summary.content is not None
+            and docstring.summary.content.data
+            and docstring.summary.content.data[0].strip()
+            and docstring.start.line < docstring.end.line
         ):
             yield Error(
-                start=docstring.start,
+                start=node.name.start if node.name is not None else docstring.start,
+                end=node.name.end if node.name is not None else docstring.end,
                 code="GL01",
                 message="Docstring should start on a new line.",
             )
 
 
-# TODO: Incorrectly flagged if docstring start on the same line as """.
 class GL02(Check):
+    """Validates that there are 1 blank line before the end quote."""
+
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if empty_suffix_lines(docstring.lines) != 1 and "\n" in docstring.raw:
+        if empty_suffix_lines(docstring.lines) != 2 and "\n" in docstring.raw:
             yield Error(
-                start=docstring.end.move_line(line=-1),
+                start=node.name.start,
+                end=node.name.end,
                 code="GL02",
                 message="Docstring should end one line before the closing quotes.",
                 suggestion="Remove empty line.",
@@ -67,6 +73,9 @@ class GL02(Check):
 
 
 class GL03(Check):
+    """Validate that the docstring don't contain multiple consecutive blank lines."""
+
+    # TODO: improve start/end position
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
@@ -75,6 +84,8 @@ class GL03(Check):
             if not prev and not row.strip() and i < len(docstring.lines) - 1:
                 yield Error(
                     code="GL03",
+                    start=node.name.start,
+                    end=node.name.end,
                     message="Docstring should not contain double line breaks.",
                 )
             prev = row.strip()
@@ -97,11 +108,11 @@ class GL06(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        for section in docstring.sections.values():
-            if section.name not in _ALLOWED_SECTIONS:
+        for name, section in docstring.sections.items():
+            if name not in _ALLOWED_SECTIONS:
                 yield Error(
-                    start=section.start_header,
-                    end=section.end_header,
+                    start=section.name.start,
+                    end=section.name.end,
                     code="GL06",
                     message="Docstring contains unexpected section.",
                     suggestion="Remove section or fix spelling.",
@@ -143,7 +154,8 @@ class GL08(Check):
     def validate(self, node: Node) -> Generator[Error, None, None]:
         if not node.has_docstring:
             yield Error(
-                start=node.start,
+                start=node.name.start,
+                end=node.name.end,
                 code="GL08",
                 message=f"{node.type.capitalize()} does not have a docstring",
             )

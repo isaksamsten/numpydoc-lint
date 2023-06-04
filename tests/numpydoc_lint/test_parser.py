@@ -7,6 +7,10 @@ def parse_code(code):
     return list(Parser().iter_docstring(StringIO(code)))
 
 
+def parse_docstring(code, nth=1):
+    return parse_code(code)[nth].parse_docstring()
+
+
 def test_parse_function_parameters():
     code = ''' 
 def test(a, *args, b=10, c: int = 2, **kwargs):
@@ -47,25 +51,58 @@ class Test:
     assert parameters[0].annotation == "str"
 
 
-def test_parse_parameter_list():
+def test_parse_function_parameters():
     code = '''
 def t(x):
-    """
-    Header.
-    
-    Extended.
-
-    Parameters
+    """Parameters
     ----------
     x : object
         Test.
-    y : object
+    y : int, optional
         J.
+    z
+        F.
     """
 '''
-    docstrings = parse_code(code)
-    func = docstrings[1].docstring_node
-    print(func.sections)
-    # assert func.summary.content.data == ["    Header."]
-    # assert func.summary.extended_content.data == ["    Extended."]
-    # assert func.sections.get("Parameters") is not None
+
+    func, errors = parse_docstring(code)
+    assert len(errors) == 0
+    parameters = func.sections.get("Parameters")
+    assert parameters is not None
+
+    assert parameters.name.start.line == 3
+    assert parameters.name.end.column == 4 + len("Parameters") + 1
+    assert parameters.name.value == "Parameters"
+    assert parameters.contents[0].name.value == "x"
+    assert parameters.contents[0].types[0].value == "object"
+    assert parameters.contents[1].name.value == "y"
+    assert parameters.contents[1].types[0].value == "int"
+    assert parameters.contents[1].optional == 1
+    assert parameters.contents[2].name.value == "z"
+    assert parameters.contents[2].types == None
+
+
+def test_error_unless_blank_line_before_section():
+    code = '''
+def f():
+    """
+    Summary.
+
+    Extended summary.
+    Parameters
+    ----------
+    x
+        Test.
+    Returns
+    -------
+    bool
+        Test.
+    """
+    pass
+'''
+    func, errors = parse_docstring(code, nth=1)  # F
+    assert len(errors) == 2
+    assert errors[0].code == "ER01"
+    assert errors[0].start.line == 7
+    assert errors[1].code == "ER01"
+    assert errors[1].start.line == 11

@@ -76,6 +76,13 @@ error[PR06]: Parameter `q` uses wrong type.
 
 5. **TODO** `numpydoc-lint` can fix common errors.
 
+## Error messages
+
+| Code   | Message                       |
+| ------ | ----------------------------- |
+| `ER01` | Docstring is missing.         |
+| `ER02` | No blank line before section. |
+
 # TODO
 
 [ ] Add tests.

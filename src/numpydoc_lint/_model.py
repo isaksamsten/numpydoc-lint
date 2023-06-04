@@ -87,22 +87,11 @@ class DocStringParameters:
 
 @dataclass(frozen=True, kw_only=True)
 class DocStringSection:
-    start_header: Pos
-    end_header: Pos
-    name: str
+    name: DocStringName
     valid_heading: bool
     contents: List[str | DocStringParameter]
     start_contents: Pos
     end_contents: Pos
-
-    def __eq__(self, other) -> bool:
-        if isinstance(other, str):
-            return self.name == other
-        else:
-            return self.name == other.name
-
-    def __hash__(self):
-        return hash(self.name)
 
 
 @dataclass(frozen=True, kw_only=True)

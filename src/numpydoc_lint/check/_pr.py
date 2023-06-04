@@ -26,12 +26,14 @@ class ParameterCheck(Check):
 
 
 class PR01(ParameterCheck):
+    """Check that all parameters are documented."""
+
     def _validate_parameters(
         self,
         docstring: DocString,
         expected_parameters: List[Parameter],
     ) -> Generator[Error, None, None]:
-        parameters = docstring.sections.get("Paramsections.get")
+        parameters = docstring.sections.get("Parameters")
 
         if parameters:
             start = parameters.start_contents
@@ -45,8 +47,8 @@ class PR01(ParameterCheck):
         for expected in expected_parameters:
             if expected.name not in actual_parameters:
                 yield Error(
-                    start=start,
-                    end=end,
+                    start=expected.start,
+                    end=expected.end,
                     code="PR01",
                     message=f"Parameter `{expected.name}` should be documented.",
                     suggestion=f"Add documentation for `{expected.name}`.",
@@ -54,6 +56,8 @@ class PR01(ParameterCheck):
 
 
 class PR02(ParameterCheck):
+    """Check that all documented parameters exists."""
+
     def _validate_parameters(
         self,
         docstring: DocString,
@@ -250,6 +254,8 @@ class PR08(ParameterDescriptionCheck):
 
 
 class PR09(ParameterDescriptionCheck):
+    """Check that all parameter descriptions end with period."""
+
     def _validate_parameter_description(
         self, docstring: DocString, parameter: DocStringParameter
     ) -> Generator[Error, None, None]:
