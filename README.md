@@ -78,10 +78,20 @@ error[PR06]: Parameter `q` uses wrong type.
 
 ## Error messages
 
+### Errors
+
+Errors that result in incorrectly parsed docstrings.
+
 | Code   | Message                       |
 | ------ | ----------------------------- |
 | `ER01` | Docstring is missing.         |
 | `ER02` | No blank line before section. |
+
+### Global warnings
+
+| `GL01` | Not a single blank line after `"""`|
+| `GL02` | Not a single blank line before end `"""` |
+| `GL03` | Multiple consecutive line breaks. |
 
 # TODO
 
