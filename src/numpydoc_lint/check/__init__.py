@@ -1,8 +1,7 @@
 from ._es import ES01
 from ._ex import EX01
 
-# TODO: Add GL05
-from ._gl import GL01, GL02, GL03, GL04, GL06, GL07, GL08, GL09, GL10, GLE01
+from ._gl import GL01, GL02, GL03, GL05, GL06, GL07, GL09, GL10, GLE01
 from ._pr import (
     PR01,
     PR02,
@@ -28,10 +27,9 @@ __all__ = [
     "GL01",
     "GL02",
     "GL03",
-    "GL04",
+    "GL05",
     "GL06",
     "GL07",
-    "GL08",
     "GL09",
     "GL10",
     "GLE01",

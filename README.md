@@ -84,17 +84,22 @@ Errors that result in incorrectly parsed docstrings.
 
 | Code   | Message                       |
 | ------ | ----------------------------- |
-| `ER01` | Docstring is missing.         |
-| `ER02` | No blank line before section. |
+| `ER01` | No blank line before section. |
 
 ### Global warnings
 
-| Code   | Message                                  |
-| ------ | ---------------------------------------- |
-| `GL01` | Not a single blank line after `"""`      |
-| `GL02` | Not a single blank line before end `"""` |
-| `GL03` | Multiple consecutive line breaks.        |
-| `GL04` | No tab characters before first letter.   |
+| Code    | Message                                                 |
+| ------- | ------------------------------------------------------- |
+| `GL01`  | Not a single blank line after `"""`                     |
+| `GL02`  | Not a single blank line before end `"""`                |
+| `GL03`  | Multiple consecutive line breaks.                       |
+| `GL05`  | No tab characters before first letter.                  |
+| `GL06`  | Docstring contains unkown section.                      |
+| `GL07`  | Sections are in wrong order.                            |
+| `GL08`  | Docstring is missing.                                   |
+| `GL09`  | Deprecation does not start the extended summary.        |
+| `GL10`  | reST directives does not end with `::`.                 |
+| `GLE01` | Extended summary contains multiple deprecated warnings. |
 
 # TODO
 

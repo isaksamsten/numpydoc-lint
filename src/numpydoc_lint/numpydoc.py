@@ -121,6 +121,13 @@ class Reader:
 
         return self.read_to_condition(is_unindented)
 
+    def seek_next_non_blank(self):
+        for line in self._lines[self._current_line :]:
+            if line.strip():
+                return
+            else:
+                self._current_line += 1
+
     def read_to_next_blank(self):
         result = [self.read_next()]
         while self.peek().strip() and not self.eof():
@@ -416,11 +423,15 @@ def _parse_parameter_list(
 
 
 def _parse_summary_extended_summary(reader: Reader, start: Pos) -> DocStringSummary:
+    reader.seek_next_non_blank()
+    summary_start = start.move(line=reader._current_line)
+    data = reader.read_to_next_blank()
     summary = DocStringParagraph(
-        start=start,
+        start=summary_start,
         end=start.move(line=reader._current_line),
-        data=reader.read_to_next_blank(),
+        data=data,
     )
+    reader.seek_next_non_blank()
     extended_start = start.move(line=reader._current_line)
     extended_data = reader.read_to_eof()
     extended_content = DocStringParagraph(
@@ -458,7 +469,7 @@ def _parse_sections(
             errors.append(
                 Error(
                     start=start.move(line=line),
-                    code="ER02",
+                    code="ER01",
                     message="Missing blank line before section",
                 )
             )
@@ -570,8 +581,8 @@ class Node(metaclass=ABCMeta):
                     Error(
                         start=self.name.start,
                         end=self.name.end,
-                        code="ER01",
-                        message="Missing docstring in public method",
+                        code="GL08",  # We define GL08 here
+                        message="Missing docstring in public method.",
                     )
                 ],
             )
