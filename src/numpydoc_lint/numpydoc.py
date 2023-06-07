@@ -128,7 +128,14 @@ class Reader:
             else:
                 self._current_line += 1
 
+    @property
+    def current_line(self):
+        return self._current_line if not self.eof() else self._current_line - 1
+
     def read_to_next_blank(self):
+        if self.eof():
+            return []
+
         result = [self.read_next()]
         while self.peek().strip() and not self.eof():
             result.append(self.read_next())
@@ -424,23 +431,27 @@ def _parse_parameter_list(
 
 def _parse_summary_extended_summary(reader: Reader, start: Pos) -> DocStringSummary:
     reader.seek_next_non_blank()
-    summary_start = start.move(line=reader._current_line)
+    summary_start = start.move(line=reader.current_line)
     data = reader.read_to_next_blank()
     summary = DocStringParagraph(
         start=summary_start,
-        end=start.move(line=reader._current_line),
+        end=start.move(line=reader.current_line),
         data=data,
     )
     reader.seek_next_non_blank()
-    extended_start = start.move(line=reader._current_line)
+    extended_start = start.move(line=reader.current_line)
     extended_data = reader.read_to_eof()
     extended_content = DocStringParagraph(
         start=extended_start,
-        end=start.move(line=reader._current_line),
+        end=start.move(line=reader.current_line),
         data=extended_data,
     )
 
-    return DocStringSummary(content=summary, extended_content=extended_content)
+    return (
+        DocStringSummary(content=summary, extended_content=extended_content)
+        if summary.data
+        else None
+    )
 
 
 def _parse_summary(*, reader: Reader, start: Pos) -> DocStringSummary:

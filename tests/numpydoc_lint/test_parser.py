@@ -1,6 +1,7 @@
 import pytest
 from io import StringIO
 from numpydoc_lint.numpydoc import Parser
+from numpydoc_lint._model import Pos
 
 
 def parse_code(code):
@@ -106,3 +107,19 @@ def f():
     assert errors[0].start.line == 7
     assert errors[1].code == "ER01"
     assert errors[1].start.line == 11
+
+
+def test_parse_empty_summary_extended_summary():
+    code = '''
+def f():
+    """
+
+    Parameters
+    ----------
+    a : obj
+        Test
+    """
+'''
+    doc, errors = parse_docstring(code, nth=1)
+    assert len(errors) == 0
+    assert doc.summary == None

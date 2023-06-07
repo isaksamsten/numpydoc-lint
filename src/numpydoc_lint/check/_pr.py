@@ -83,6 +83,8 @@ class PR02(ParameterCheck):
 
 
 class PR03(ParameterCheck):
+    """Validate that the parameters are in the same order as function declaration."""
+
     def _validate_parameters(
         self,
         docstring: DocString,

@@ -101,6 +101,14 @@ Errors that result in incorrectly parsed docstrings.
 | `GL10`  | reST directives does not end with `::`.                 |
 | `GLE01` | Extended summary contains multiple deprecated warnings. |
 
+### Parameter warnings
+
+| Code   | Message                                                                     |
+| ------ | --------------------------------------------------------------------------- |
+| `PR01` | Validate that all parameters are documented.                                |
+| `PR02` | Validate that all documented parameters exists.                             |
+| `PR03` | Validate that the documented and declared parameters are in the same order. |
+
 # TODO
 
 [ ] Add tests.

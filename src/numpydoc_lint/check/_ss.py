@@ -9,7 +9,7 @@ class SS01(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if not docstring.summary.content:
+        if not docstring.summary:
             yield Error(
                 code="SS01",
                 message="No summary found.",
@@ -21,7 +21,7 @@ class SS02(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if docstring.summary.content:
+        if docstring.summary:
             data = docstring.summary.content.data
             first_line = first_non_blank(data)
             if not first_line:
@@ -42,9 +42,9 @@ class SS03(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if docstring.summary.content:
+        if docstring.summary:
             data = docstring.summary.content.data
-            if data[0][-1] != ".":
+            if data and data[0][-1] != ".":
                 yield Error(
                     start=docstring.summary.content.start,
                     end=docstring.summary.content.start.move(
@@ -60,7 +60,7 @@ class SS04(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if docstring.summary.content:
+        if docstring.summary:
             data = docstring.summary.content.data
             indent = docstring.indent
             first_line_indent = len(data[0]) - len(data[0].lstrip())
@@ -82,7 +82,7 @@ class SS05(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if docstring.summary.content is None:
+        if docstring.summary is None:
             return
 
         data = docstring.summary.content.data
@@ -106,7 +106,7 @@ class SS06(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if docstring.summary.content is None:
+        if docstring.summary is None:
             return
 
         data = docstring.summary.content.data

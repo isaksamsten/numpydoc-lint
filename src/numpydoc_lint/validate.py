@@ -83,6 +83,7 @@ _CHECKS = OrderedDict(
 )
 
 
+# TODO: should get a `Config` object as parameter
 class Validator:
     def __init__(
         self,

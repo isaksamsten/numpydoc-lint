@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 from numpydoc_lint.numpydoc import Parser, Pos
-from numpydoc_lint.validate import Error, GL01, PR09, PR01
+from numpydoc_lint.validate import Error, GL01, PR09, PR01, PR02, PR03
 from common import check_docstring
 
 
@@ -51,3 +51,49 @@ def test(p, x, y):
     assert len(warnings) == 3
     assert warnings[0].code == "PR01"
     assert warnings[0].start == Pos(line=2, column=10)
+
+
+def test_PR02_parameter_does_not_exist():
+    code = '''
+def test(a):
+    """
+    Parameters
+    ----------
+    a : int
+        Test
+    b : int
+        Test
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR02())
+    assert len(warnings) == 1
+    assert warnings[0].code == "PR02"
+    assert "`b`" in warnings[0].message
+    assert warnings[0].start == Pos(8, 5)
+
+
+def test_PR03_parameter_wrong_order():
+    code = '''
+def test(b, aaa):
+    """
+    Parameters
+    ----------
+    aaa : int
+        Test
+    b : int
+        Test
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR03())
+    assert len(warnings) == 2
+    assert warnings[0].code == "PR03"
+    assert "`aaa`" in warnings[0].message
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[0].end == Pos(6, 8)
+
+    assert warnings[1].code == "PR03"
+    assert "`b`" in warnings[1].message
+    assert warnings[1].start == Pos(8, 5)
+    assert warnings[1].end == Pos(8, 6)
