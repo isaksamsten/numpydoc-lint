@@ -111,6 +111,8 @@ class PR03(ParameterCheck):
 
 
 class PR04(ParameterCheck):
+    """Validate that each parameter has a declared type."""
+
     def _validate_parameters(
         self,
         docstring: DocString,
@@ -138,7 +140,7 @@ class PR04(ParameterCheck):
                         start=parameter.name.start,
                         end=parameter.name.end,
                         code="PR04",
-                        message="Parameter `{0}` should have a type".format(
+                        message="Parameter `{0}` should have a type.".format(
                             parameter.name.value
                         ),
                         suggestion=suggestion,

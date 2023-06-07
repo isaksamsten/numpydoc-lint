@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 from numpydoc_lint.numpydoc import Parser, Pos
-from numpydoc_lint.validate import Error, GL01, PR09, PR01, PR02, PR03
+from numpydoc_lint.validate import Error, GL01, PR09, PR01, PR02, PR03, PR04
 from common import check_docstring
 
 
@@ -97,3 +97,25 @@ def test(b, aaa):
     assert "`b`" in warnings[1].message
     assert warnings[1].start == Pos(8, 5)
     assert warnings[1].end == Pos(8, 6)
+
+
+def test_PR04_type_declaration_missing():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    aaa
+        Test
+    b : int
+        Test
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR04())
+    assert len(warnings) == 1
+    assert warnings[0].code == "PR04"
+    assert "`int`" in warnings[0].suggestion
+    assert "`aaa`" in warnings[0].message
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[0].end == Pos(6, 8)

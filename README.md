@@ -94,7 +94,7 @@ Errors that result in incorrectly parsed docstrings.
 | `GL02`  | Not a single blank line before end `"""`                |
 | `GL03`  | Multiple consecutive line breaks.                       |
 | `GL05`  | No tab characters before first letter.                  |
-| `GL06`  | Docstring contains unkown section.                      |
+| `GL06`  | Docstring contains unknown section.                     |
 | `GL07`  | Sections are in wrong order.                            |
 | `GL08`  | Docstring is missing.                                   |
 | `GL09`  | Deprecation does not start the extended summary.        |
@@ -108,6 +108,7 @@ Errors that result in incorrectly parsed docstrings.
 | `PR01` | Validate that all parameters are documented.                                |
 | `PR02` | Validate that all documented parameters exists.                             |
 | `PR03` | Validate that the documented and declared parameters are in the same order. |
+| `PR03` | Validate that parameters have a declared type.                              |
 
 # TODO
 
