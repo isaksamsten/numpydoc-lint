@@ -16,6 +16,9 @@ from numpydoc_lint.validate import (
     PR08,
     PR09,
     PR10,
+    PRE01,
+    PRE02,
+    PRE03,
 )
 from common import check_docstring
 
@@ -322,3 +325,193 @@ def test(b, aaa: int):
     assert warnings[2].code == "PR10"
     assert warnings[2].start == Pos(10, 5)
     assert warnings[2].end == Pos(10, 7)
+
+
+def test_PRE01_has_empty_prefix_lines():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b: int or string, optional .
+
+        test
+    a :integer
+        Test
+    c:int
+        Test.
+    d : int
+
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PRE01())
+    assert len(warnings) == 2
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[1].start == Pos(13, 5)
+
+
+def test_PRE01_has_empty_prefix_lines():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b: int or string, optional .
+        test
+
+    a :integer
+        Test
+    c:int
+        Test.
+    d : int
+
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PRE02())
+    assert len(warnings) == 2
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[1].start == Pos(13, 5)
+
+    assert len(warnings) == 1
+    assert warnings[0].code == "PR08"
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[0].end == Pos(6, 6)
+
+
+def test_PR09_no_period():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b : int or string, optional .
+        test
+    a : integer
+
+        Test
+
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR09())
+    assert len(warnings) == 2
+    assert warnings[0].code == "PR09"
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[0].end == Pos(6, 6)
+
+
+def test_PR09_raw_string():
+    code = r'''
+def test(p):
+    r"""Parameters
+    ----------
+    p : object\
+            test
+        Test test test '\n'.
+    """
+    pass
+    '''
+    node, docstring, errors, warnings = check_docstring(code, PR09())
+    assert docstring.sections["Parameters"].contents[0].types[0].value == "object\\"
+    assert len(errors) == 0
+
+
+def test_PR10_no_space():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b: int or string, optional .
+        test
+    a :integer
+        Test
+    c:int
+        Test.
+    d : int
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR10())
+    print(warnings)
+    assert len(warnings) == 3
+    assert warnings[0].code == "PR10"
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[0].end == Pos(6, 7)
+
+    assert warnings[1].code == "PR10"
+    assert warnings[1].start == Pos(8, 7)
+    assert warnings[1].end == Pos(8, 9)
+
+    assert warnings[2].code == "PR10"
+    assert warnings[2].start == Pos(10, 5)
+    assert warnings[2].end == Pos(10, 7)
+
+
+def test_PRE01_has_empty_prefix_lines():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b: int or string, optional .
+
+        test
+    a :integer
+        Test
+    c:int
+        Test.
+    d : int
+
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PRE01())
+    assert len(warnings) == 2
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[1].start == Pos(13, 5)
+
+
+def test_PRE01_PRE02_correct():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b: int or string, optional .
+        test
+    a :integer
+        Test
+    c:int
+        Test.
+    d : int
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PRE01())
+    assert len(warnings) == 0
+    func, docstring, errors, warnings = check_docstring(code, PRE02())
+    assert len(warnings) == 0
+
+
+def test_PRE03_multiple_optional():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b: int or string, optional
+        test
+    a :integer, optional, optional
+        Test
+    c:int, optional
+        Test.
+    d : int
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PRE03())
+    assert len(warnings) == 1
+    assert warnings[0].start == Pos(8, 5)
