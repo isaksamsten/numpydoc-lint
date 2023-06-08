@@ -13,24 +13,11 @@ from numpydoc_lint.validate import (
     PR05,
     PR06,
     PR07,
+    PR08,
+    PR09,
+    PR10,
 )
 from common import check_docstring
-
-
-def test_PR09_raw_string():
-    code = r'''
-def test(p):
-    r"""Parameters
-    ----------
-    p : object\
-            test
-        Test test test '\n'.
-    """
-    pass
-    '''
-    node, docstring, errors, warnings = check_docstring(code, PR09())
-    assert docstring.sections["Parameters"].contents[0].types[0].value == "object\\"
-    assert len(errors) == 0
 
 
 def test_PR01_with_parameters_section():
@@ -241,3 +228,97 @@ def test(b, aaa: int):
     assert warnings[0].code == "PR07"
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 6)
+
+
+def test_PR08_not_uppercase():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b : int or string, optional .
+        test.
+    a : integer
+
+
+
+        Test
+
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR08())
+    assert len(warnings) == 1
+    assert warnings[0].code == "PR08"
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[0].end == Pos(6, 6)
+
+
+def test_PR09_no_period():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b : int or string, optional .
+        test
+    a : integer
+
+        Test
+
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR09())
+    assert len(warnings) == 2
+    assert warnings[0].code == "PR09"
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[0].end == Pos(6, 6)
+
+
+def test_PR09_raw_string():
+    code = r'''
+def test(p):
+    r"""Parameters
+    ----------
+    p : object\
+            test
+        Test test test '\n'.
+    """
+    pass
+    '''
+    node, docstring, errors, warnings = check_docstring(code, PR09())
+    assert docstring.sections["Parameters"].contents[0].types[0].value == "object\\"
+    assert len(errors) == 0
+
+
+def test_PR10_no_space():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b: int or string, optional .
+        test
+    a :integer
+        Test
+    c:int
+        Test.
+    d : int
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR10())
+    print(warnings)
+    assert len(warnings) == 3
+    assert warnings[0].code == "PR10"
+    assert warnings[0].start == Pos(6, 5)
+    assert warnings[0].end == Pos(6, 7)
+
+    assert warnings[1].code == "PR10"
+    assert warnings[1].start == Pos(8, 7)
+    assert warnings[1].end == Pos(8, 9)
+
+    assert warnings[2].code == "PR10"
+    assert warnings[2].start == Pos(10, 5)
+    assert warnings[2].end == Pos(10, 7)

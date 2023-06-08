@@ -159,3 +159,6 @@ class Error:
     @property
     def suggestion(self):
         return self._suggestion
+
+    def __repr__(self):
+        return str(self.__dict__)

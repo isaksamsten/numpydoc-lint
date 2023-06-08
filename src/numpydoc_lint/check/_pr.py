@@ -346,14 +346,15 @@ class PR10(ParameterCheck):
     ) -> Generator[Error, None, None]:
         parameters = docstring.sections.get("Parameters")
         if parameters and parameters.contents:
-            parameter = parameters.contents[0]
-            for match in re.finditer(r"(\S:|:\S|:\s*$|^\s*:)", parameter.header):
-                yield Error(
-                    start=parameter.name.start.move(column=match.start(1)),
-                    end=parameter.name.start.move(column=match.end(1)),
-                    code="PR10",
-                    message=(
-                        "Parameter `{}` requires a space between name and type."
-                    ).format(parameter.name.value),
-                    suggestion="Insert a space before and/or after `:`.",
-                )
+            for parameter in parameters.contents:
+                for match in re.finditer(r"(\S:|:\S|:\s*$|^\s*:)", parameter.header):
+                    print(match)
+                    yield Error(
+                        start=parameter.name.start.move(column=match.start(1)),
+                        end=parameter.name.start.move(column=match.end(1)),
+                        code="PR10",
+                        message=(
+                            "Parameter `{}` requires a space between name and type."
+                        ).format(parameter.name.value),
+                        suggestion="Insert a space before and/or after `:`.",
+                    )
