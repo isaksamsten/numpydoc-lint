@@ -46,5 +46,6 @@ convention = "numpy"
 [tool.numpydoc-lint]
 # select = []
 # ignore = ["PRE01"]
+exclude = ["tests/**/*.py"]
 exclude-magic = true
 include-private = true 

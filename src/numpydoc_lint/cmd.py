@@ -53,7 +53,7 @@ class Config:
 
     def is_excluded(self, path: Path):
         """
-        Te.
+        Determine if a path is excluded.
 
         Parameters
         ----------
@@ -61,7 +61,9 @@ class Config:
             The path.
 
         """
-        return False  # TODO: implement
+        return self.exclude is not None and any(
+            path.match(exclude) for exclude in self.exclude
+        )
 
     def is_selected(self, code):
         pass
@@ -115,7 +117,8 @@ def _config_from_pyproject(file: Path):
     return C()
 
 
-def _validate(file, *, parser, config, error_formatter, filename=None):
+def _validate(file, *, parser, config, error_formatter, path=None):
+    print("1:1:1:1: GL00 {}".format(path))
     for node in parser.iter_docstring(file):
         validator = Validator(
             include_private=config.include_private,
@@ -126,7 +129,7 @@ def _validate(file, *, parser, config, error_formatter, filename=None):
         for error in validator.validate(node):
             if config.ignore is None or error.code not in config.ignore:
                 error_formatter.add_error(
-                    filename if filename is not None else file.name, node, error
+                    path.name if path is not None else file.name, node, error
                 )
 
 
@@ -153,19 +156,21 @@ def run() -> None:
     error_formatter = _ERROR_FORMATTERS[args.format]()
     if args.input == "-":
         if args.stdin_filename is not None:
-            filename = Path(args.stdin_filename)
+            path = Path(args.stdin_filename)
         else:
-            filename = None
+            path = None
 
-        if not config.is_defined and filename and filename.exists():
-            config = _config_from_pyproject(filename)
+        if not config.is_defined and path and path.exists():
+            config = _config_from_pyproject(path)
 
-        _validate(
-            sys.stdin,
-            parser=parser,
-            config=config,
-            error_formatter=error_formatter,
-        )
+        if path is None or (path is not None and not config.is_excluded(path)):
+            _validate(
+                sys.stdin,
+                parser=parser,
+                config=config,
+                error_formatter=error_formatter,
+                path=path,
+            )
     else:
         root = Path(args.input)
         if not root.exists():
@@ -175,7 +180,7 @@ def run() -> None:
         if not config.is_defined:
             config = _config_from_pyproject(root)
 
-        if root.is_file():
+        if root.is_file() and not config.is_excluded(root):
             with root.open("r", encoding="utf-8") as file:
                 _validate(
                     file,
@@ -185,7 +190,7 @@ def run() -> None:
                 )
         else:
             for path in root.rglob("*.py"):
-                if config.exclude and filename in config.exclude:
+                if config.exclude and config.is_excluded(path):
                     continue
 
                 with path.open("r", encoding="utf-8") as file:

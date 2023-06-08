@@ -1,6 +1,6 @@
 import io
-import re
 from collections import OrderedDict, defaultdict
+from ._model import Pos
 from typing import Generator, Iterable, List, Mapping, Tuple
 
 from .check import (
@@ -149,21 +149,23 @@ class ErrorFormatter:
 
 class DetailedErrorFormatter(ErrorFormatter):
     def _format_error(self, file: str, node: Node, error: Error) -> str:
-        line = str(error.start.line)
-        docstring = node.docstring_node.get_code()
-        if docstring:
-            error_start = error.start.normalize(docstring.start)
+        if node.has_docstring:
+            line = str(error.start.line)
+            docstring = node.node.get_code().splitlines()
+            while not docstring[0].strip():
+                docstring.pop(0)
+
+            # print(docstring)
+            start = Pos(*node.node.start_pos)
+
+            error_start = error.start.normalize(start)
             offending_lines = []
 
             for i in range(max(0, error_start.line - 2), error_start.line + 1):
-                if i == 0 and re.match("^\s*$", docstring.lines[i]):
-                    continue
+                offending_lines.append("{} | {}\n".format(start.line + i, docstring[i]))
 
-                offending_lines.append(
-                    "{} | {}\n".format(docstring.start.line + i, docstring.lines[i])
-                )
             offending_line = "".join(offending_lines)
-            print(error.code, error.start)
+
             line_pad = (" " * len(line)) + " | " + (" " * (error.start.column - 1))
             underline_len = error.end.column - error.start.column
             if underline_len == 0:
@@ -192,4 +194,4 @@ class DetailedErrorFormatter(ErrorFormatter):
                 suggestion,
             )
         else:
-            return super()._format_error(file, error)
+            return super()._format_error(file, node, error)

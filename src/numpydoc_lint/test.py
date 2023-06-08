@@ -129,20 +129,23 @@ def _array_or_scalar(x, squeeze=True):
         return np.squeeze(x) if squeeze else x
 
 
-def test(*, a: int, b, c=10, d: int = 20):
+def test(*, a: int, b, c, d: int = 20):
     """
     Summary.
 
     Extended summary.
 
+    Examples
+    --------
+    >>> from test import test
+
     Parameters
     ----------
     a : {test, test}
-        test a
     q : integer
     b : object or integer
         Test b.
-    c : object, optional, optional
+    c : object, optional
         Test c.
     x : object
         A parameter.
@@ -156,6 +159,7 @@ def test(*, a: int, b, c=10, d: int = 20):
     --------
     test : a test function,
     :obj:`test` : test func
+
     """
     pass
 
