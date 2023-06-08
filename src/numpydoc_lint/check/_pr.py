@@ -148,6 +148,8 @@ class PR04(ParameterCheck):
 
 
 class PR05(ParameterCheck):
+    """Validate that the type specification does not end with period."""
+
     def _validate_parameters(
         self,
         docstring: DocString,

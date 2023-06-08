@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 from numpydoc_lint.numpydoc import Parser, Pos
-from numpydoc_lint.validate import Error, GL01, PR09, PR01, PR02, PR03, PR04
+from numpydoc_lint.validate import Error, GL01, PR09, PR01, PR02, PR03, PR04, PR05
 from common import check_docstring
 
 
@@ -119,3 +119,53 @@ def test(b, aaa: int):
     assert "`aaa`" in warnings[0].message
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 8)
+
+
+def test_PR05_period_ends_type():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    aaa : int.
+        Test
+    b : int or string.
+        Test
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR05())
+    assert len(warnings) == 2
+    assert warnings[0].code == "PR05"
+    assert warnings[0].start == Pos(6, 15)
+    assert warnings[0].end == Pos(6, 15)
+
+    assert warnings[1].code == "PR05"
+    assert warnings[1].start == Pos(8, 23)
+    assert warnings[1].end == Pos(8, 23)
+
+
+def test_PR05_period_ends_type_optional():
+    """
+    Summary.
+
+    Parameters
+    ----------
+    a : int
+        Test.
+
+    """
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b : int or string, optional .
+        Test
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR05())
+    assert len(warnings) == 1
+    assert warnings[0].code == "PR05"
+    assert warnings[0].start == Pos(6, 34)
