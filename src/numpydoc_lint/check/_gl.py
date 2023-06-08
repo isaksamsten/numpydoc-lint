@@ -48,9 +48,8 @@ class GL01(Check):
         if (
             node.has_docstring
             and docstring.summary is not None
-            and docstring.summary.content is not None
             and docstring.summary.content.data
-            and docstring.summary.content.data[0].strip()
+            and docstring.summary.content.start.line != docstring.start.line + 1
             and docstring.start.line < docstring.end.line
         ):
             yield Error(

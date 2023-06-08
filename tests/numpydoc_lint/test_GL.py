@@ -29,6 +29,20 @@ def f():
     assert warnings[0].end == Pos(line=2, column=6)
 
 
+def test_GL01_multiline_correct():
+    code = '''
+def f():
+    """
+    Test.
+    
+    Extended summary.
+    """
+    pass
+'''
+    node, docstring, errors, warnings = check_docstring(code, GL01())
+    assert len(warnings) == 0
+
+
 def test_GL02_single_line_no_blank_after():
     code = '''
 def f():
