@@ -137,12 +137,10 @@ def test(*, a: int, b, c=10, d: int = 20):
 
     Parameters
     ----------
-    a :{}
+    a : {test, test}
         test a
     q : integer
-    b : object\
-            test
-
+    b : object or integer
         Test b.
     c : object, optional, optional
         Test c.

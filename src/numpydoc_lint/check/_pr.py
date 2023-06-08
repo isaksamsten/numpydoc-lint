@@ -190,18 +190,21 @@ class PR06(ParameterCheck):
             if parameter.types:
                 for type in parameter.types:
                     if type.value in PR06._common_type_errors:
+                        message = "Parameter `{}` uses wrong type `{}` instead of `{}`."
                         yield Error(
                             start=type.start,
                             end=type.end,
                             code="PR06",
-                            message="Parameter `{}` uses wrong type.".format(
-                                parameter.name.value
+                            message=message.format(
+                                parameter.name.value,
+                                type.value,
+                                PR06._common_type_errors[type.value],
                             ),
                             suggestion="Use `{}` instead of `{}`.".format(
                                 PR06._common_type_errors[type.value], type.value
                             ),
                         )
-                    elif type.value == "{}":
+                    elif re.match("{\s*}", type.value):
                         yield Error(
                             start=type.start,
                             end=type.end,

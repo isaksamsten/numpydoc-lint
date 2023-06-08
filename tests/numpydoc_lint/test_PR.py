@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 from numpydoc_lint.numpydoc import Parser, Pos
-from numpydoc_lint.validate import Error, GL01, PR09, PR01, PR02, PR03, PR04, PR05
+from numpydoc_lint.validate import Error, GL01, PR09, PR01, PR02, PR03, PR04, PR05, PR06
 from common import check_docstring
 
 
@@ -169,3 +169,44 @@ def test(b, aaa: int):
     assert len(warnings) == 1
     assert warnings[0].code == "PR05"
     assert warnings[0].start == Pos(6, 34)
+
+
+def test_PR06_wrong_type():
+    code = '''
+def test(b, aaa: int):
+    """
+    Parameters
+    ----------
+    b : int or string, optional .
+        Test
+    a : integer
+        Test
+    c : int or boolean
+        Test
+    d : { } or int
+        Test.
+
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, PR06())
+    assert len(warnings) == 4
+    assert warnings[0].code == "PR06"
+    assert "`b`" in warnings[0].message
+    assert warnings[0].start == Pos(6, 16)
+    assert warnings[0].end == Pos(6, 22)
+
+    assert warnings[1].code == "PR06"
+    assert "`a`" in warnings[1].message
+    assert warnings[1].start == Pos(8, 9)
+    assert warnings[1].end == Pos(8, 16)
+
+    assert warnings[2].code == "PR06"
+    assert "`c`" in warnings[2].message
+    assert warnings[2].start == Pos(10, 16)
+    assert warnings[2].end == Pos(10, 23)
+
+    assert warnings[3].code == "PR06"
+    assert "`d`" in warnings[3].message
+    assert warnings[3].start == Pos(12, 9)
+    assert warnings[3].end == Pos(12, 12)
