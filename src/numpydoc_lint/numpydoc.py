@@ -593,7 +593,7 @@ class Node(metaclass=ABCMeta):
                         start=self.name.start,
                         end=self.name.end,
                         code="GL08",  # We define GL08 here
-                        message="Missing docstring in public method.",
+                        message="Missing docstring in public {}.".format(self.type),
                     )
                 ],
             )
