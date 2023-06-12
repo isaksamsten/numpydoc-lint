@@ -44,7 +44,7 @@ class SS03(Check):
     ) -> Generator[Error, None, None]:
         if docstring.summary:
             data = docstring.summary.content.data
-            if data and data[0][-1] != ".":
+            if data and data[0].value[-1] != ".":
                 yield Error(
                     start=docstring.summary.content.start,
                     end=docstring.summary.content.start.move(
@@ -63,7 +63,7 @@ class SS04(Check):
         if docstring.summary:
             data = docstring.summary.content.data
             indent = docstring.indent
-            first_line_indent = len(data[0]) - len(data[0].lstrip())
+            first_line_indent = len(data[0].value) - len(data[0].value.lstrip())
             if first_line_indent != indent:
                 yield Error(
                     start=docstring.summary.content.start.move(
@@ -87,7 +87,7 @@ class SS05(Check):
 
         data = docstring.summary.content.data
         if node.type in ["function", "method"] and data:
-            match = re.match(r"^\s*(.*?)\s+", data[0])
+            match = re.match(r"^\s*(.*?)\s+", data[0].value)
             if match:
                 word = match.group(1).strip()
                 if word != "" and word[-1] == "s":

@@ -475,9 +475,8 @@ def test(b, aaa: int):
     pass
 '''
     func, docstring, errors, warnings = check_docstring(code, PRE01())
-    assert len(warnings) == 2
+    assert len(warnings) == 1
     assert warnings[0].start == Pos(6, 5)
-    assert warnings[1].start == Pos(13, 5)
 
 
 def test_PRE01_PRE02_correct():

@@ -279,12 +279,26 @@ class PR09(ParameterDescriptionCheck):
         )
 
 
-class PRE01(ParameterDescriptionCheck):
+class PRE0102Base(ParameterDescriptionCheck):
+    def _validate_parameters(
+        self,
+        docstring: DocString,
+        declared_parameters: List[Parameter],
+    ) -> Generator[Error, None, None]:
+        parameters = docstring.sections.get("Parameters")
+        if parameters:
+            for i, parameter in enumerate(parameters.contents):
+                yield from self._validate_parameter_description(
+                    docstring, parameter, i, len(parameters.contents)
+                )
+
+
+class PRE01(PRE0102Base):
     def _validate_parameter_description(
-        self, docstring: DocString, parameter: DocStringParameter
+        self, docstring: DocString, parameter: DocStringParameter, i: int, n: int
     ) -> Generator[Error, None, None]:
         if parameter.description.data:
-            if empty_prefix_lines(parameter.description.data) > 0:
+            if empty_prefix_lines(parameter.description.data) > 0 and i < n - 1:
                 yield Error(
                     start=parameter.name.start,
                     end=parameter.name.end,
@@ -296,12 +310,12 @@ class PRE01(ParameterDescriptionCheck):
                 )
 
 
-class PRE02(ParameterDescriptionCheck):
+class PRE02(PRE0102Base):
     def _validate_parameter_description(
-        self, docstring: DocString, parameter: DocStringParameter
+        self, docstring: DocString, parameter: DocStringParameter, i: int, n: int
     ) -> Generator[Error, None, None]:
         if parameter.description.data:
-            if empty_suffix_lines(parameter.description.data) > 0:
+            if empty_suffix_lines(parameter.description.data) > 0 and i < n - 1:
                 yield Error(
                     start=parameter.name.start,
                     end=parameter.name.end,

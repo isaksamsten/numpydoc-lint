@@ -8,13 +8,28 @@ Python docstrings.
 ```shell
 $ git clone git@github.com/isaksamsten/numpydoc-lint
 $ cd numpydoc-lint
-$ pip install .
+$ pipx install .
 ```
 
 ## Usage
 
 ```
-python -m numpydoc_lint [-h] [--format {simple,full}] [--ignore [IGNORE ...]] [--select [SELECT ...]] [--exclude [EXCLUDE ...]] [--include-private] [--exclude-magic] [input ...]
+usage: numpydoc_lint [-h] [--format {simple,full}] [--ignore [IGNORE ...]] [--select [SELECT ...]] [--exclude [EXCLUDE ...]] [--include-private] [--exclude-magic] [--stdin-filename STDIN_FILENAME] [input]
+
+Lint numpydoc comments
+
+positional arguments:
+  input
+
+options:
+  -h, --help            show this help message and exit
+  --format {simple,full}
+  --ignore [IGNORE ...]
+  --select [SELECT ...]
+  --exclude [EXCLUDE ...]
+  --include-private
+  --exclude-magic
+  --stdin-filename STDIN_FILENAM
 ```
 
 | Argument          | Values                                                                                          |
@@ -33,7 +48,7 @@ The `input` is zero or more file paths. If no path is specified, lint code on `s
 With simple output:
 
 ```
-$ python -m numpydoc_lint src/numpydoc_lint/**/*.py --format=simple --exclude src/*/test.py --ignore GL ES RT
+$ numpydoc-lint src/ --format=simple --exclude "src/*/test.py" --ignore GL ES RT
 src/numpydoc_lint/numpydoc.py:79:4:79:71: PR01 Parameter `l` should be documented.
 src/numpydoc_lint/numpydoc.py:92:4:92:8: PR09 Parameter `data` description should end with period.
 src/numpydoc_lint/numpydoc.py:92:4:92:8: PRE02 Parameter `data` description has empty suffix lines.
@@ -42,7 +57,7 @@ src/numpydoc_lint/numpydoc.py:92:4:92:8: PRE02 Parameter `data` description has 
 With full output:
 
 ```
-$ python -m numpydoc_lint src/numpydoc_lint/**/*.py --format=full --ignore GL ES RT
+$ numpydoc-lint src/ --format=full --ignore GL ES RT
 error[PR06]: Parameter `a` uses empty choice.
    --> src/numpydoc_lint/test.py:128:7
 126 |     Parameters
@@ -60,6 +75,53 @@ error[PR06]: Parameter `q` uses wrong type.
     |               |
     |               Use `int` instead of `integer`.
 ```
+
+# Editor integration
+
+We can integrate `numpydoc-lint` with our favorite editor Neovim using `null-ls` and a custom source.
+
+```lua
+local h = require("null-ls.helpers")
+local methods = require("null-ls.methods")
+local DIAGNOSTICS = methods.internal.DIAGNOSTICS
+
+local numpydoc_lint = h.make_builtin({
+  name = "numpydoc-lint",
+  meta = {
+    url = "https://github.com/isaksamsten/numpydoc-lint/",
+    description = "Find errors in Numpydoc formatted docstrings.",
+  },
+  method = DIAGNOSTICS,
+  filetypes = { "python" },
+  generator_opts = {
+    command = "numpydoc-lint",
+    args = { "--stdin-filename", "$FILENAME" },
+    format = "line",
+    check_exit_code = function(code)
+      return code == 1
+    end,
+    to_stdin = true,
+    ignore_stderr = true,
+    on_output = h.diagnostics.from_pattern(
+      [[(%d+):(%d+):(%d+):(%d+): ((%u)%w+) (.*)]],
+      { "row", "col", "end_row", "end_col", "code", "severity", "message" },
+      {
+        severities = {
+          G = h.diagnostics.severities["information"],
+          S = h.diagnostics.severities["information"],
+          P = h.diagnostics.severities["information"],
+          R = h.diagnostics.severities["information"],
+          Y = h.diagnostics.severities["information"],
+          E = h.diagnostics.severities["warning"],
+        },
+      }
+    ),
+  },
+  factory = h.generator_factory,
+})
+```
+
+Use `numpydoc_lint` where you setup your `null-ls` sources.
 
 # Why numpydoc-lint instead of numpydoc validate?
 
