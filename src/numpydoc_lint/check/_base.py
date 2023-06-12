@@ -2,12 +2,8 @@ import re
 from abc import ABCMeta, abstractmethod
 from typing import Generator, List, Optional
 
-from ..numpydoc import (
-    DocString,
-    DocStringParameter,
-    Node,
-)
-from .._model import Error
+from .._model import DocString, DocStringParameter, Line, Error
+from ..numpydoc import Node
 
 DIRECTIVES = ["versionadded", "versionchanged", "deprecated"]
 DIRECTIVE_PATTERN = re.compile(
@@ -43,13 +39,13 @@ class Check(metaclass=ABCMeta):
             yield from self._validate(doc, docstring)
 
 
-def _before_directive(lines: List[str]) -> List[str]:
+def _before_directive(lines: List[Line]) -> List[Line]:
     new_lines = []
     for line in lines:
-        if any(f".. {directive}" in line for directive in DIRECTIVES):
+        if any(f".. {directive}" in line.value for directive in DIRECTIVES):
             return new_lines
 
-        if line.strip():
+        if line.value.strip():
             new_lines.append(line)
 
     return new_lines
@@ -65,7 +61,8 @@ def _validate_parameter_has_description(
     suggestion: str,
 ) -> Generator[Error, None, None]:
     if not parameter.description.data or all(
-        line.strip() == "" for line in _before_directive(parameter.description.data)
+        line.value.strip() == ""
+        for line in _before_directive(parameter.description.data)
     ):
         name = parameter.name if parameter.name is not None else parameter.types[0]
         yield Error(
@@ -88,7 +85,7 @@ def _validate_parameter_description_start_uppercase(
 ) -> Generator[Error, None, None]:
     data = _before_directive(parameter.description.data)
     if data:
-        first = data[0].lstrip()
+        first = data[0].value.lstrip()
         if first and first[0].isalpha() and not first[0].isupper():
             name = parameter.name if parameter.name is not None else parameter.types[0]
             yield Error(
@@ -111,7 +108,7 @@ def _validate_parameter_description_ends_period(
 ) -> Generator[Error, None, None]:
     data = _before_directive(parameter.description.data)
     if data:
-        last = data[-1]
+        last = data[-1].value
         if last:
             match = re.match("^(\s*)", last)
             indent = 0
@@ -136,24 +133,26 @@ def _validate_parameter_description_ends_period(
                 )
 
 
-def empty_prefix_lines(lines: List[str]):
-    i = None
-    for i, row in enumerate(lines):
-        if row.strip():
-            break
-    return i
-
-
-def empty_suffix_lines(lines: List[str]):
-    i = None
-    for i, row in enumerate(reversed(lines)):
-        if row.strip():
-            break
-    return i
-
-
-def first_non_blank(lines: List[str]) -> Optional[str]:
+def empty_prefix_lines(lines: List[Line]):
+    i = 0
     for line in lines:
-        if not line.strip():
+        if line.value.strip():
+            break
+        i += 1
+    return i
+
+
+def empty_suffix_lines(lines: List[Line]):
+    i = 0
+    for line in reversed(lines):
+        if line.value.strip():
+            break
+        i += 1
+    return i
+
+
+def first_non_blank(lines: List[Line]) -> Optional[Line]:
+    for line in lines:
+        if not line.value.strip():
             return line
     return None

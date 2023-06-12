@@ -45,11 +45,17 @@ class Pos:
         )
 
 
+@dataclass(frozen=True)
+class Line:
+    pos: Pos
+    value: str
+
+
 @dataclass(frozen=True, kw_only=True)
 class DocStringParagraph:
     start: Pos
     end: Pos
-    data: list[str]
+    data: List[Line]
 
 
 @dataclass(frozen=True, kw_only=True)

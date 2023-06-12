@@ -292,6 +292,8 @@ def test(p):
     '''
     node, docstring, errors, warnings = check_docstring(code, PR09())
     assert docstring.sections["Parameters"].contents[0].types[0].value == "object\\"
+    assert docstring is None
+    assert docstring.sections["Parameters"].contents[0].description[1] == None
     assert len(errors) == 0
 
 
@@ -415,6 +417,10 @@ def test(p):
     '''
     node, docstring, errors, warnings = check_docstring(code, PR09())
     assert docstring.sections["Parameters"].contents[0].types[0].value == "object\\"
+    assert (
+        docstring.sections["Parameters"].contents[0].description.data[0].value
+        == "        test"
+    )
     assert len(errors) == 0
 
 

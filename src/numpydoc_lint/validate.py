@@ -155,7 +155,6 @@ class DetailedErrorFormatter(ErrorFormatter):
             while not docstring[0].strip():
                 docstring.pop(0)
 
-            # print(docstring)
             start = Pos(*node.node.start_pos)
 
             error_start = error.start.normalize(start)

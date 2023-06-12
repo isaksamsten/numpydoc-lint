@@ -118,7 +118,6 @@ def _config_from_pyproject(file: Path):
 
 
 def _validate(file, *, parser, config, error_formatter, path=None):
-    print("1:1:1:1: GL00 {}".format(path))
     for node in parser.iter_docstring(file):
         validator = Validator(
             include_private=config.include_private,

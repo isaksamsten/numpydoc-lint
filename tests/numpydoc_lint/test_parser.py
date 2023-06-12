@@ -123,3 +123,21 @@ def f():
     doc, errors = parse_docstring(code, nth=1)
     assert len(errors) == 0
     assert doc.summary == None
+
+
+def test_raw_string_lines():
+    code = r'''
+def f():
+    """
+
+    Parameters
+    ----------
+    a : obj \
+            lol
+        Test
+    """
+'''
+    doc, errors = parse_docstring(code, nth=1)
+    assert doc.lines[-1].pos.line == 10
+    assert len(doc.lines) == 7
+    assert doc.lines[4].value == "    a : obj lol"

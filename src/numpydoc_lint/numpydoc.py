@@ -13,6 +13,7 @@ from ._model import (
     Parameter,
     Name,
     Pos,
+    Line,
 )
 
 import parso
@@ -117,27 +118,35 @@ class Reader:
 
     def read_to_next_unindented_line(self):
         def is_unindented(line):
-            return line.strip() and (len(line.lstrip()) == len(line))
+            return line.value.strip() and (len(line.value.lstrip()) == len(line.value))
 
         return self.read_to_condition(is_unindented)
 
     def seek_next_non_blank(self):
         for line in self._lines[self._current_line :]:
-            if line.strip():
+            if line.value.strip():
                 return
             else:
                 self._current_line += 1
 
     @property
     def current_line(self):
-        return self._current_line if not self.eof() else self._current_line - 1
+        return self.current_pos.line
+
+    @property
+    def current_pos(self):
+        return (
+            self[self._current_line].pos
+            if not self.eof()
+            else self[self._current_line - 1].pos
+        )
 
     def read_to_next_blank(self):
         if self.eof():
             return []
 
         result = [self.read_next()]
-        while self.peek().strip() and not self.eof():
+        while self.peek() and self.peek().value.strip() and not self.eof():
             result.append(self.read_next())
         return result
 
@@ -150,14 +159,14 @@ class Reader:
         if self.eof():
             return False
 
-        l1 = self.peek().strip()  # e.g. Parameters
+        l1 = self.peek().value.strip() if self.peek() else ""
         if not l1.strip():
             return False
 
         if l1.startswith(".. index::"):
             return True
 
-        l2 = self.peek(1).strip()  # ---------- or ==========
+        l2 = self.peek(1).value.strip() if self.peek(1) else ""
         if len(l2) >= 3 and (set(l2) in ({"-"}, {"="})) and len(l2) != len(l1):
             # TODO: add as error
             pass
@@ -178,18 +187,18 @@ class Reader:
         if 0 <= self._current_line + n < len(self._lines):
             return self[self._current_line + n]
         else:
-            return ""
+            return None
 
 
 def strip_empty_lines(contents):
     i = 0
     j = 0
     for i, line in enumerate(contents):
-        if line.strip():
+        if line.value.strip():
             break
 
     for j, line in enumerate(contents[::-1]):
-        if line.strip():
+        if line.value.strip():
             break
 
     return contents[i : len(contents) - j]
@@ -206,28 +215,51 @@ class ParseError(Exception):
 _PYTHON_VERSION = "{}.{}.{}".format(*sys.version_info)
 
 
-def _format_raw_doc(doc: str):
-    doc_lines = doc.splitlines()  # if not re.match("^\s*#", line)]
+def _format_raw_doc(doc: str, start: Pos):
+    doc_lines = doc.splitlines()
     while doc_lines and re.match("^\s*#|^\s*$", doc_lines[0]):
         doc_lines.pop(0)
 
-    doc = "\n".join(doc_lines)
-    first_delim = doc.find('"')
-    last_delim = doc.rfind('"')
+    first_delim = doc_lines[0].find('"')
+    last_delim = doc_lines[-1].rfind('"')
+    first_r = doc_lines[0].find("r")
 
-    first_r = doc.find("r")
     first_delim_len = 3
     if first_r > -1 and first_delim - first_r == 1:  # r-string
         first_delim = first_r
         first_delim_len = 4
-        doc = doc.encode("utf-8").decode("raw_unicode_escape")
-    else:
-        doc = doc.encode("utf-8").decode("unicode_escape")
 
-    doc = doc[:first_delim] + doc[first_delim + first_delim_len : last_delim - 2]
+    if len(doc_lines) == 1:
+        first_line = (
+            doc_lines[0][:first_delim]
+            + doc_lines[0][first_delim + first_delim_len : last_delim - 2]
+        )
+    else:
+        first_line = (
+            doc_lines[0][:first_delim] + doc_lines[0][first_delim + first_delim_len :]
+        )
+
+    lines = [Line(start, first_line)]
+    i = 1
+    while i < len(doc_lines) - 1:
+        line = doc_lines[i]
+        joined_line = line
+        current_line = i
+        while len(line) >= 1 and line[-1] == "\\" and first_delim_len != 4:
+            i += 1
+            line = doc_lines[i]
+            joined_line = joined_line[:-1] + line.lstrip()
+
+        lines.append(Line(start.move(line=current_line), joined_line))
+        i += 1
+
+    if len(doc_lines) > 1:
+        last_line = doc_lines[-1][: last_delim - 2]
+        lines.append(Line(start.move(line=i), last_line))
+
     return (
         first_delim,
-        doc.splitlines(),
+        lines,
         doc,
     )
 
@@ -355,28 +387,23 @@ _TYPE_PATTERN = re.compile(r"(?:\s*)(\{.*\}|.+?)(?:\s*(?:,(?![^()]*\))|or|$))")
 def _parse_parameter_list(
     data: List[str],
     *,
-    start: Pos,
     indent: int,
-    # errors: Errors,
     single_element_is_type: bool = False,
 ) -> List[DocStringParameter]:
     params = []
-    reader = Reader([line[indent:] for line in data])
+    reader = Reader([Line(line.pos, line.value[indent:]) for line in data])
     while not reader.eof():
-        parameter_start = start.move(line=reader._current_line)
-        header_str = reader.read()
-        if not header_str.strip():
+        parameter_start = reader.current_pos
+        param_header = reader.read()
+        print(param_header)
+        if not param_header.value.strip():
             continue
 
-        header = re.match(_NAME_TYPE_PATTERN, header_str)
+        header = re.match(_NAME_TYPE_PATTERN, param_header.value)
         if header.group("name"):
             name = DocStringName(
-                start=start.move(
-                    line=reader._current_line + 1, column=header.start("name")
-                ),
-                end=start.move(
-                    line=reader._current_line + 1, column=header.end("name")
-                ),
+                start=param_header.pos.move(column=header.start("name")),
+                end=param_header.pos.move(column=header.end("name")),
                 value=header.group("name"),
             )
         else:
@@ -387,13 +414,11 @@ def _parse_parameter_list(
 
             for type in re.finditer(_TYPE_PATTERN, header.group("type")):
                 type = DocStringName(
-                    start=start.move(
-                        line=reader._current_line + 1,
-                        column=header.start("type") + type.start(1),
+                    start=param_header.pos.move(
+                        column=header.start("type") + type.start(1)
                     ),
-                    end=start.move(
-                        line=reader._current_line + 1,
-                        column=header.start("type") + type.end(1),
+                    end=param_header.pos.move(
+                        column=header.start("type") + type.end(1)
                     ),
                     value=type.group(1),
                 )
@@ -408,19 +433,19 @@ def _parse_parameter_list(
         if types is None and single_element_is_type:
             name, types = None, [name]
 
-        description_start = start.move(line=reader._current_line)
+        description_start = reader.current_pos
         description = reader.read_to_next_unindented_line()
         params.append(
             DocStringParameter(
                 start=parameter_start,
-                end=start.move(line=reader._current_line),
-                header=header_str,
+                end=reader.current_pos,
+                header=param_header.value,
                 name=name,
                 types=types,
                 optional=optional,
                 description=DocStringParagraph(
                     start=description_start,
-                    end=start.move(line=reader._current_line),
+                    end=reader.current_pos,
                     data=description,
                 ),
             )
@@ -429,21 +454,21 @@ def _parse_parameter_list(
     return params
 
 
-def _parse_summary_extended_summary(reader: Reader, start: Pos) -> DocStringSummary:
+def _parse_summary_extended_summary(reader: Reader) -> DocStringSummary:
     reader.seek_next_non_blank()
-    summary_start = start.move(line=reader.current_line)
+    summary_start = reader.current_pos
     data = reader.read_to_next_blank()
     summary = DocStringParagraph(
         start=summary_start,
-        end=start.move(line=reader.current_line),
+        end=reader.current_pos,
         data=data,
     )
     reader.seek_next_non_blank()
-    extended_start = start.move(line=reader.current_line)
+    extended_start = reader.current_pos
     extended_data = reader.read_to_eof()
     extended_content = DocStringParagraph(
         start=extended_start,
-        end=start.move(line=reader.current_line),
+        end=reader.current_pos,
         data=extended_data,
     )
 
@@ -454,13 +479,12 @@ def _parse_summary_extended_summary(reader: Reader, start: Pos) -> DocStringSumm
     )
 
 
-def _parse_summary(*, reader: Reader, start: Pos) -> DocStringSummary:
+def _parse_summary(*, reader: Reader) -> DocStringSummary:
     if reader.is_at_section():
         summary = None
     else:
-        start = start.move_line(line=reader._current_line)
         content = reader.read_to_next_header()
-        summary = _parse_summary_extended_summary(Reader(content), start)
+        summary = _parse_summary_extended_summary(Reader(content))
     return summary
 
 
@@ -468,18 +492,17 @@ def _parse_sections(
     *,
     reader: Reader,
     errors: List[Error],
-    start: Pos,
     indent: int,
 ) -> list[DocStringSection]:
     sections = {}
     while not reader.eof():
-        line = reader._current_line
+        current_pos = reader.current_pos
 
         # TODO: make the intent more clear with peek.
-        if reader.peek(-1).strip():
+        if reader.peek(-1) and reader.peek(-1).value.strip():
             errors.append(
                 Error(
-                    start=start.move(line=line),
+                    start=current_pos,
                     code="ER01",
                     message="Missing blank line before section",
                 )
@@ -490,11 +513,11 @@ def _parse_sections(
             sections = []
             break
 
-        column = len(data[0]) - len(data[0].lstrip()) + 1
+        column = len(data[0].value) - len(data[0].value.lstrip()) + 1
 
         if len(data) > 1:
-            name = data[0].strip()
-            underline = data[1].strip()
+            name = data[0].value.strip()
+            underline = data[1].value.strip()
             if len(name) == len(underline):
                 valid = re.match(r"^-*$", underline) and len(name) == len(underline)
 
@@ -504,11 +527,7 @@ def _parse_sections(
                     "Attributes",
                     "Methods",
                 ):
-                    contents = _parse_parameter_list(
-                        data[2:],
-                        start=start.move(line=line),
-                        indent=indent,
-                    )
+                    contents = _parse_parameter_list(data[2:], indent=indent)
                 elif name in (
                     "Returns",
                     "Yields",
@@ -517,32 +536,24 @@ def _parse_sections(
                     "Receives",
                 ):
                     contents = _parse_parameter_list(
-                        data[2:],
-                        start=start.move(line=line),
-                        indent=indent,
-                        single_element_is_type=True,
+                        data[2:], indent=indent, single_element_is_type=True
                     )
                 elif name == "See Also":
-                    contents = _parse_see_also(
-                        data[2:],
-                        start=start.move(line=line),
-                        errors=errors,
-                        indent=indent,
-                    )
+                    contents = _parse_see_also(data[2:], errors=errors, indent=indent)
                 else:
                     contents = strip_empty_lines(data[:2])  # TODO: skip
 
                 sections[name] = DocStringSection(
                     name=DocStringName(
-                        start=start.move_line(line=line, column=column),
-                        end=start.move_line(line=line, column=column + len(name)),
+                        start=current_pos.move(absolute_column=column),
+                        end=current_pos.move(absolute_column=column + len(name)),
                         value=name,
                     ),
                     valid_heading=valid,
                     contents=contents,
                     # TODO: remove and make part of `contents`
-                    start_contents=start.move_line(line=line),
-                    end_contents=start.move_line(line=len(data) - 2),
+                    start_contents=current_pos,
+                    end_contents=data[-1].pos,
                 )
     return sections
 
@@ -551,10 +562,10 @@ def parse_docstring(node: parso.python.tree.Node) -> Tuple[DocString, List[Error
     errors = []
     start = Pos(node.start_pos[0], node.start_pos[1] + 1)
     end = Pos(node.end_pos[0], node.end_pos[1] + 1)
-    indent, lines, raw = _format_raw_doc(node.get_code())
+    indent, lines, raw = _format_raw_doc(node.get_code(), start)
     reader = Reader(lines)
-    summary = _parse_summary(reader=reader, start=start)
-    sections = _parse_sections(reader=reader, errors=errors, start=start, indent=indent)
+    summary = _parse_summary(reader=reader)
+    sections = _parse_sections(reader=reader, errors=errors, indent=indent)
     return (
         DocString(
             start=start,

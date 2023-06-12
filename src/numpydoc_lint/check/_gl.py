@@ -30,12 +30,12 @@ DEPRECATED_START_PATTERN = re.compile(r"\s*(\.\. deprecated::)\s+")
 
 def _find_deprectated(paragraph: DocStringParagraph):
     if paragraph:
-        for i, line in enumerate(paragraph.data):
-            match = re.search(DEPRECATED_START_PATTERN, line)
+        for line in paragraph.data:
+            match = re.search(DEPRECATED_START_PATTERN, line.value)
             if match:
                 yield (
-                    paragraph.start.move(line=i, absolute_column=match.start(1) + 1),
-                    paragraph.start.move(line=i, absolute_column=match.end(1) + 1),
+                    line.pos.move(absolute_column=match.start(1) + 1),
+                    line.pos.move(absolute_column=match.end(1) + 1),
                 )
 
 
@@ -85,14 +85,14 @@ class GL03(Check):
     ) -> Generator[Error, None, None]:
         prev = True
         for i, row in enumerate(docstring.lines):
-            if not prev and not row.strip() and i < len(docstring.lines) - 1:
+            if not prev and not row.value.strip() and i < len(docstring.lines) - 1:
                 yield Error(
                     code="GL03",
                     start=node.name.start,
                     end=node.name.end,
                     message="Docstring should not contain double line breaks.",
                 )
-            prev = row.strip()
+            prev = row.value.strip()
         return None
 
 
@@ -100,13 +100,11 @@ class GL05(Check):
     """Validate that the docstring only contain leading spaces."""
 
     def _validate(self, node: Node, docstring: DocString) -> Optional[Error]:
-        for i, line in enumerate(docstring.lines):
-            for match in re.finditer("^(\t+)", line):
+        for line in docstring.lines:
+            for match in re.finditer("^(\t+)", line.value):
                 yield Error(
-                    start=docstring.start.move(
-                        line=i, absolute_column=match.start(1) + 1
-                    ),
-                    end=docstring.start.move(line=i, absolute_column=match.end(1) + 1),
+                    start=line.pos.move(absolute_column=match.start(1) + 1),
+                    end=line.pos.move(absolute_column=match.end(1) + 1),
                     code="GL05",
                     message="Docstring line should not start with tabs.",
                 )
@@ -220,14 +218,12 @@ class GL10(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        for i, line in enumerate(docstring.lines):
-            match = re.match(DIRECTIVE_PATTERN, line)
+        for line in docstring.lines:
+            match = re.match(DIRECTIVE_PATTERN, line.value)
             if match:
                 yield Error(
-                    start=docstring.start.move(
-                        line=i, absolute_column=match.start(1) + 1
-                    ),
-                    end=docstring.start.move(line=i, absolute_column=match.end(1) + 1),
+                    start=line.pos.move(absolute_column=match.start(1) + 1),
+                    end=line.pos.move(absolute_column=match.end(1) + 1),
                     code="GL10",
                     message="reST directives must be followed by two colon.",
                     suggestion="Fix the directive by inserting `::`",
