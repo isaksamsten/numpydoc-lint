@@ -149,7 +149,9 @@ class GL07(Check):
                     start=actual_section.name.start,
                     end=actual_section.name.end,
                     code="GL07",
-                    message="Sections are in the wrong order.",
+                    message="Section `{}` should be swapped with `{}`.".format(
+                        actual_section.name.value, expected_section
+                    ),
                     suggestion=f"Section should be `{expected_section}`",
                 )
 

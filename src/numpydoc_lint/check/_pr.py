@@ -97,12 +97,13 @@ class PR03(ParameterCheck):
                     parameters.contents, declared_parameters
                 ):
                     if doc_parameter.name.value != dec_parameter.name:
+                        message = "Parameter `{}` should be swapped with `{}`."
                         yield Error(
                             start=doc_parameter.name.start,
                             end=doc_parameter.name.end,
                             code="PR03",
-                            message="The parameter `{0}` is in wrong order.".format(
-                                doc_parameter.name.value
+                            message=message.format(
+                                doc_parameter.name.value, dec_parameter.name
                             ),
                             suggestion="The parameter should be `{0}`.".format(
                                 dec_parameter.name
