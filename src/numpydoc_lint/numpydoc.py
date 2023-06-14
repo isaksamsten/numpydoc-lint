@@ -1,7 +1,7 @@
 import re
 import sys
 from abc import ABCMeta, abstractproperty
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Generator
 from ._model import (
     DocString,
     DocStringName,
@@ -395,7 +395,6 @@ def _parse_parameter_list(
     while not reader.eof():
         parameter_start = reader.current_pos
         param_header = reader.read()
-        print(param_header)
         if not param_header.value.strip():
             continue
 
@@ -599,14 +598,7 @@ class Node(metaclass=ABCMeta):
             if self.docstring_node is not None
             else (
                 None,
-                [
-                    Error(
-                        start=self.name.start,
-                        end=self.name.end,
-                        code="GL08",  # We define GL08 here
-                        message="Missing docstring in public {}.".format(self.type),
-                    )
-                ],
+                [],
             )
         )
 
@@ -656,6 +648,19 @@ class Node(metaclass=ABCMeta):
     def end(self):
         line, col = self.node.end_pos
         return Pos(line, col + 1)
+
+    @property
+    def skip_remaining_on_error(self):
+        return True
+
+    def validate(self) -> Generator[Error, None, None]:
+        if not self.has_docstring:
+            yield Error(
+                start=self.name.start,
+                end=self.name.end,
+                code="GL08",  # We define GL08 here
+                message="Missing docstring in public {}.".format(self.type),
+            )
 
 
 def _find_noqa(prefix: str) -> List[str]:
@@ -743,6 +748,7 @@ class Class(Node):
 
     @property
     def attributes(self):
+        print(self.dump())
         return None
 
     @property
@@ -785,6 +791,18 @@ class Method(FunctionDocstring):
     @property
     def type(self):
         return "method"
+
+    def validate(self) -> Generator[Error, None, None]:
+        if self.name.value == "__init__":
+            if self.has_docstring:
+                yield Error(
+                    start=self.name.start,
+                    end=self.name.end,
+                    code="EM01",
+                    message="`__init__` should be documented in the class docstring.",
+                )
+        else:
+            yield from super().validate()
 
 
 class Parser:

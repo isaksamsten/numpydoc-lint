@@ -103,6 +103,14 @@ class Validator:
         if self.exclude_magic and node.magic:
             return
 
+        any_errors = False
+        for error in node.validate():
+            yield error
+            any_errors = True
+
+        if any_errors and node.skip_remaining_on_error:
+            return
+
         docstring, errors = node.parse_docstring()
         for error in errors:
             if error.code not in node.noqa:

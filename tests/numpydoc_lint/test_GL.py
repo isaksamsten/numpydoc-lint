@@ -25,8 +25,8 @@ def f():
     node, docstring, errors, warnings = check_docstring(code, GL01())
     assert len(warnings) == 1
     assert warnings[0].code == "GL01"
-    assert warnings[0].start == Pos(line=2, column=5)
-    assert warnings[0].end == Pos(line=2, column=6)
+    assert warnings[0].start == Pos(line=3, column=5)
+    assert warnings[0].end == Pos(line=3, column=5)
 
 
 def test_GL01_multiline_correct():
@@ -63,7 +63,7 @@ def f():
     node, docstring, errors, warnings = check_docstring(code, GL02())
     assert len(warnings) == 1
     assert warnings[0].code == "GL02"
-    assert warnings[0].start == Pos(2, 5)
+    assert warnings[0].start == Pos(4, 5)
 
     node, docstring, errors, warnings = check_docstring(code, GL01())
     assert len(warnings) == 1
@@ -95,9 +95,11 @@ def f():
     pass
 '''
     node, docstring, errors, warnings = check_docstring(code, GL03())
+    print(warnings[0])
     assert len(warnings) == 1
     assert warnings[0].code == "GL03"
-    assert warnings[0].start == Pos(2, 5)
+    assert warnings[0].start == Pos(5, 5)
+    assert warnings[0].end == Pos(6, 5)
 
 
 def test_GL03_single_blank_lines():

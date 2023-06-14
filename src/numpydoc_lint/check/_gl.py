@@ -53,8 +53,8 @@ class GL01(Check):
             and docstring.start.line < docstring.end.line
         ):
             yield Error(
-                start=node.name.start if node.name is not None else docstring.start,
-                end=node.name.end if node.name is not None else docstring.end,
+                start=docstring.summary.content.data[0].pos,
+                end=docstring.summary.content.data[0].pos,
                 code="GL01",
                 message="Docstring should start on a new line.",
             )
@@ -66,10 +66,10 @@ class GL02(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if empty_suffix_lines(docstring.lines) != 2 and "\n" in docstring.raw:
+        if len(docstring.lines) > 1 and empty_suffix_lines(docstring.lines) != 2:
             yield Error(
-                start=node.name.start,
-                end=node.name.end,
+                start=docstring.lines[-1].pos,
+                end=docstring.lines[-1].pos,
                 code="GL02",
                 message="Docstring should end one line before the closing quotes.",
                 suggestion="Remove empty line.",
@@ -83,17 +83,21 @@ class GL03(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        prev = True
-        for i, row in enumerate(docstring.lines):
-            if not prev and not row.value.strip() and i < len(docstring.lines) - 1:
-                yield Error(
-                    code="GL03",
-                    start=node.name.start,
-                    end=node.name.end,
-                    message="Docstring should not contain double line breaks.",
-                )
-            prev = row.value.strip()
-        return None
+        if len(docstring.lines) > 2:
+            prev_line = docstring.lines[0]
+            for i, current_line in enumerate(docstring.lines[1:]):
+                if (
+                    not prev_line.value.strip()
+                    and not current_line.value.strip()
+                    and i < len(docstring.lines) - 2
+                ):
+                    yield Error(
+                        code="GL03",
+                        start=prev_line.pos,
+                        end=current_line.pos,
+                        message="Docstring should not contain double line breaks.",
+                    )
+                prev_line = current_line
 
 
 class GL05(Check):

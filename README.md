@@ -147,6 +147,7 @@ Errors that result in incorrectly parsed docstrings.
 | Code   | Message                       |
 | ------ | ----------------------------- |
 | `ER01` | No blank line before section. |
+| `EM01` | `__init__` has docstring.     |
 
 ### Global warnings
 

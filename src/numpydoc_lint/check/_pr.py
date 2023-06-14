@@ -362,7 +362,6 @@ class PR10(ParameterCheck):
         if parameters and parameters.contents:
             for parameter in parameters.contents:
                 for match in re.finditer(r"(\S:|:\S|:\s*$|^\s*:)", parameter.header):
-                    print(match)
                     yield Error(
                         start=parameter.name.start.move(column=match.start(1)),
                         end=parameter.name.start.move(column=match.end(1)),
