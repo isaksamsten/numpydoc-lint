@@ -141,3 +141,21 @@ def f():
     assert doc.lines[-1].pos.line == 10
     assert len(doc.lines) == 7
     assert doc.lines[4].value == "    a : obj lol"
+
+
+def test_parse_see_also():
+    code = r'''
+def f():
+    """
+    Summary
+
+    Extended summary
+
+    See Also
+    --------
+    `obj`:test, : a test object
+    test_parse_see_also : a function
+    """
+'''
+    doc, errors = parse_docstring(code, nth=1)
+    assert len(errors) == 0

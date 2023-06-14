@@ -310,17 +310,23 @@ _LINE_PATTERN = re.compile(
 
 # TODO: proper return value
 def _parse_see_also(
-    data: List[str],
+    data: List[Line],
     *,
-    start: Pos,
     indent: int,
     errors: List[Error],
 ) -> List[DocStringParameter]:
-    def parse_item_name(text):
+    def parse_item_name(text: str, pos: Pos):
         match = _FUNC_PATTERN.match(text)
         if not match:
-            # TODO: add as error
-            raise ParseError(f"Failed to parse {text}")
+            errors.append(
+                Error(
+                    start=pos,
+                    end=pos,
+                    code="ER02",
+                    message="Malformed item in `See Also`.",
+                )
+            )
+            return None
 
         role = match.group("role")
         name = match.group("name") if role else match.group("name2")
@@ -328,7 +334,8 @@ def _parse_see_also(
 
     items = []
     rest = []
-    for i, line in enumerate((line[indent:] for line in data)):
+    for row in data:
+        line = row.value
         if not line.strip():
             continue
 
@@ -337,9 +344,12 @@ def _parse_see_also(
         if match:
             description = match.group("desc")
             if match.group("trailing") and description:
-                errors.flag(
-                    message="Unexpected comma or period after function list",
-                    line=start.line + i,
+                errors.append(
+                    Error(
+                        start=row.pos.move(absolute_column=match.end("trailing")),
+                        code="ER03",
+                        message="Unexpected comma or period after function list in `See Also`.",
+                    )
                 )
 
         if not description and line.startswith(" "):
@@ -351,7 +361,7 @@ def _parse_see_also(
                 if not text.strip():
                     break
 
-                name, role, match_end = parse_item_name(text)
+                name, role, match_end = parse_item_name(text, row.pos)
                 funcs.append((name, role))
                 text = text[match_end:].strip()
                 if text and text[0] == ",":
@@ -367,7 +377,9 @@ def _parse_see_also(
             # 2) rest as DocStringParagraph
             items.append((funcs, rest))
         else:
-            pass
+            errors.append(
+                Error(start=row.pos, code="ER04", message="Malformed `See Also` entry.")
+            )
             # errors.flag(
             #     message="Error parsing See also", line=start.line + i, abort=True
             # )
@@ -748,7 +760,6 @@ class Class(Node):
 
     @property
     def attributes(self):
-        print(self.dump())
         return None
 
     @property
