@@ -1,31 +1,15 @@
 import re
 from typing import Generator, Optional
 
-from ..numpydoc import DocStringParagraph, Node, DocString
-from ._base import Check, Error, empty_suffix_lines
-
-_ALLOWED_SECTIONS = [
-    "Parameters",
-    "Attributes",
-    "Methods",
-    "Returns",
-    "Yields",
-    "Other Parameters",
-    "Raises",
-    "Warns",
-    "Warnings",
-    "See Also",
-    "Notes",
-    "References",
-    "Examples",
-]
-
-DIRECTIVES = ["versionadded", "versionchanged", "deprecated"]
-DIRECTIVE_PATTERN = re.compile(
-    r"^\s*(\.\. (:?{})(?!::))".format("|".join(DIRECTIVES)), re.I
+from ..numpydoc import (
+    DocStringParagraph,
+    Node,
+    DocString,
+    ALLOWED_SECTIONS,
+    DIRECTIVE_PATTERN,
+    DEPRECATED_START_PATTERN,
 )
-
-DEPRECATED_START_PATTERN = re.compile(r"\s*(\.\. deprecated::)\s+")
+from ._base import Check, Error, empty_suffix_lines
 
 
 def _find_deprectated(paragraph: DocStringParagraph):
@@ -71,7 +55,7 @@ class GL02(Check):
                 start=docstring.lines[-1].pos,
                 end=docstring.lines[-1].pos,
                 code="GL02",
-                message="Docstring should end one line before the closing quotes.",
+                message="Docstring should end without blank lines.",
                 suggestion="Remove empty line.",
             )
 
@@ -119,7 +103,7 @@ class GL06(Check):
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
         for name, section in docstring.sections.items():
-            if name not in _ALLOWED_SECTIONS:
+            if name not in ALLOWED_SECTIONS:
                 yield Error(
                     start=section.name.start,
                     end=section.name.end,
@@ -135,13 +119,13 @@ class GL07(Check):
     ) -> Generator[Error, None, None]:
         expected_sections = [
             section
-            for section in _ALLOWED_SECTIONS
+            for section in ALLOWED_SECTIONS
             if section in docstring.sections.keys()
         ]
         actual_sections = [
             section
             for section in docstring.sections.values()
-            if section.name.value in _ALLOWED_SECTIONS
+            if section.name.value in ALLOWED_SECTIONS
         ]
         for expected_section, actual_section in zip(expected_sections, actual_sections):
             if expected_section != actual_section.name.value:

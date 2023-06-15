@@ -6,3 +6,6 @@
 [ ] Don't flag non-existing parameters as out-of-order.
 [ ] Support multiple parameters on the same declaration
 `x1, x2 : array-like`.
+[x] Improve parsing of sections, so we can warn when the heading is not using
+the exact case
+[ ] Improve error message for parameter order.

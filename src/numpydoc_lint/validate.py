@@ -1,124 +1,54 @@
 import io
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from ._model import Pos
-from typing import Generator, Iterable, List, Mapping, Tuple
+from typing import Generator, Iterable, Mapping, Tuple
 
-from .check import (
-    ES01,
-    GL01,
-    GL02,
-    GL03,
-    GL05,
-    GL06,
-    GL07,
-    GL09,
-    GL10,
-    GLE01,
-    PR01,
-    PR02,
-    PR03,
-    PR04,
-    PR05,
-    PR06,
-    PR07,
-    PR08,
-    PR09,
-    PR10,
-    PRE01,
-    PRE02,
-    PRE03,
-    RT01,
-    RT02,
-    RT03,
-    RT04,
-    RT05,
-    SS01,
-    SS02,
-    SS03,
-    SS04,
-    SS05,
-    SS06,
-    YD01,
-)
-from .check._base import Check, Error
+from .check._base import Error
 from .numpydoc import Node
-
-_CHECKS = OrderedDict(
-    # GL08=GL08(),  # Terminates if fails
-    GL01=GL01(),
-    GL02=GL02(),
-    GL03=GL03(),
-    GL05=GL05(),
-    GL06=GL06(),
-    GL07=GL07(),
-    GL09=GL09(),
-    GL10=GL10(),
-    GLE01=GLE01(),
-    SS01=SS01(),
-    SS02=SS02(),
-    SS03=SS03(),
-    SS04=SS04(),
-    SS05=SS05(),
-    SS06=SS06(),
-    ES01=ES01(),
-    PR01=PR01(),
-    PR02=PR02(),
-    PR03=PR03(),
-    PR04=PR04(),
-    PR05=PR05(),
-    PR06=PR06(),
-    PR07=PR07(),
-    PR08=PR08(),
-    PR09=PR09(),
-    PR10=PR10(),
-    PRE01=PRE01(),
-    PRE02=PRE02(),
-    PRE03=PRE03(),
-    RT01=RT01(),
-    RT02=RT02(),
-    RT03=RT03(),
-    RT04=RT04(),
-    RT05=RT05(),
-    YD01=YD01(),
-)
+from ._config import Config
 
 
 # TODO: should get a `Config` object as parameter
 class Validator:
-    def __init__(
-        self,
-        checks: List[Check],
-        *,
-        include_private=False,
-        exclude_magic=False,
-    ) -> None:
-        self.include_private = include_private
-        self.exclude_magic = exclude_magic
-        self.checks = checks
+    def __init__(self, config: Config = None) -> None:
+        self.config = config
+        self.checks = self.config.get_checks()
 
     def validate(self, node: Node) -> Generator[Error, None, None]:
-        if not self.include_private and node.private:
+        if self.config.is_node_excluded(node):
             return
 
-        if self.exclude_magic and node.magic:
-            return
-
+        # First we let the node validate it self for possible errors.
         any_errors = False
         for error in node.validate():
-            yield error
-            any_errors = True
+            if not node.is_error_ignored(
+                error.code
+            ) and not self.config.is_error_ignored(error.code):
+                yield error
+                any_errors = True
 
         if any_errors and node.skip_remaining_on_error:
             return
 
+        # Then, we parse the docstring and report any errors in the docstring,
+        # We define errores as those warnings that would result in incorrect rendering.
         docstring, errors = node.parse_docstring()
         for error in errors:
-            if error.code not in node.noqa:
+            if not node.is_error_ignored(
+                error.code
+            ) and not self.config.is_error_ignored(error.code):
                 yield error
 
+        # Finally, if the docstring could be parsed and exists, we run all
+        # checks, ignoring those checks that the user excludes.
+        #
+        # NOTE: the `checks` array should only contain the checks explicitly
+        # requested by the user.
         if docstring:
             for check in self.checks:
-                if check.__class__.__name__ not in node.noqa:
+                if not node.is_error_ignored(
+                    check.name
+                ) and not self.config.is_error_ignored(check.name):
                     for error in check.validate(node, docstring):
                         yield error
 

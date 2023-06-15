@@ -38,6 +38,10 @@ class Check(metaclass=ABCMeta):
         if doc.has_docstring:
             yield from self._validate(doc, docstring)
 
+    @property
+    def name(self):
+        return self.__class__.__name__
+
 
 def _before_directive(lines: List[Line]) -> List[Line]:
     new_lines = []

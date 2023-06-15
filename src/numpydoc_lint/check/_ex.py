@@ -12,8 +12,8 @@ class EX01(Check):
     ) -> Generator[Error, None, None]:
         if not docstring.sections.get("Examples"):
             yield Error(
-                start=docstring.start,
-                end=docstring.end,
+                start=node.name.start,
+                end=node.name.end,
                 code="EX01",
                 message="No examples section found.",
                 suggestion="Add a Examples section",

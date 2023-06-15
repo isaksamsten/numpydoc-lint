@@ -131,13 +131,14 @@ def f():
     """
 
     Parameters
-    ----------
+    ---
     a : obj \
             lol
         Test
     """
 '''
     doc, errors = parse_docstring(code, nth=1)
+    assert "Parameters" in doc.sections
     assert doc.lines[-1].pos.line == 10
     assert len(doc.lines) == 7
     assert doc.lines[4].value == "    a : obj lol"
@@ -159,3 +160,38 @@ def f():
 '''
     doc, errors = parse_docstring(code, nth=1)
     assert len(errors) == 0
+
+
+def test_parse_unkown_section():
+    code = r'''
+def f():
+    """
+    Summary
+
+    Extended summary
+
+    Paramrtrs
+    ---------
+    param : int
+        Wrong.
+
+    Examples
+    -------
+    An example.
+
+    See also
+    --------
+    `obj`:test, : a test object
+    test_parse_see_also : a function
+    """
+'''
+    doc, errors = parse_docstring(code, nth=1)
+    assert len(errors) == 3
+    assert errors[0].code == "ER06"
+    assert errors[0].start == Pos(8, 5)
+
+    assert errors[1].code == "ER05"
+    assert errors[1].start == Pos(14, 5)
+
+    assert errors[2].code == "ER06"
+    assert errors[2].start == Pos(17, 5)

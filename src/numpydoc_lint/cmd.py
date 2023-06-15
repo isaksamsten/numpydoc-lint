@@ -1,11 +1,10 @@
 """Command line interface for numpydoc-lint."""
-import tomli
 import sys
 from pathlib import Path
 from argparse import ArgumentParser
-from typing import Optional, List, Mapping
 from .numpydoc import Parser
-from .validate import DetailedErrorFormatter, ErrorFormatter, Validator, Check, _CHECKS
+from .validate import DetailedErrorFormatter, ErrorFormatter, Validator
+from ._config import Config, load_config_from_pyproject
 
 _ERROR_FORMATTERS = {
     "simple": ErrorFormatter,
@@ -13,123 +12,14 @@ _ERROR_FORMATTERS = {
 }
 
 
-class Config:
-    def __init__(
-        self,
-        ignore: Optional[List[str]] = None,
-        select: Optional[List[str]] = None,
-        exclude: Optional[List[str]] = None,
-        include_private: bool = None,
-        exclude_magic: bool = None,
-    ) -> None:
-        self.ignore = ignore
-        self.select = select
-        self.exclude = exclude
-        self.include_private = include_private
-        self.exclude_magic = exclude_magic
-        self._checks = None
-
-    def get_checks(self) -> Mapping[str, Check]:
-        if self._checks is None:
-            if self.select is None or "all" in self.select:
-                self._checks = _CHECKS
-            else:
-                self._checks = {
-                    key: value
-                    for key, value in _CHECKS.items()
-                    if any(key.startswith(select) for select in self.select)
-                }
-
-            self._checks = [
-                self._checks[check]
-                for check in self._checks.keys()
-                if not self.is_ignored(check)
-            ]
-
-        return self._checks
-
-    def is_ignored(self, code):
-        return self.ignore is not None and code in self.ignore
-
-    def is_excluded(self, path: Path):
-        """
-        Determine if a path is excluded.
-
-        Parameters
-        ----------
-        path : Path
-            The path.
-
-        """
-        return self.exclude is not None and any(
-            path.match(exclude) for exclude in self.exclude
-        )
-
-    def is_selected(self, code):
-        pass
-
-    @property
-    def is_defined(self):
-        return (
-            self.ignore is not None
-            or self.select is not None
-            or self.exclude is not None
-            or self.include_private is not None
-            or self.exclude_magic is not None
-        )
-
-    def __repr__(self):
-        return str(self.__dict__)
-
-
-def _config_from_pyproject(file: Path):
-    def _find_pyproject(path):
-        if path.is_file():
-            path = path.parent
-
-        for file in path.iterdir():
-            if file.is_file() and file.name == "pyproject.toml":
-                return file
-        if path == path.parent:
-            return None
-        else:
-            return _find_pyproject(path.parent)
-
-    pyproject = _find_pyproject(file)
-
-    if pyproject:
-        cfg = tomli.load(pyproject.open(mode="rb"))
-        if "tool" in cfg and "numpydoc-lint" in cfg["tool"]:
-            cfg = cfg["tool"]["numpydoc-lint"]
-            return Config(
-                ignore=cfg.get("ignore", None),
-                select=cfg.get("select", None),
-                exclude=cfg.get("exclude", None),
-                include_private=cfg.get("include-private", None),
-                exclude_magic=cfg.get("exclude-magic", None),
-            )
-
-    class C(Config):
-        @property
-        def is_defined(self):
-            return True
-
-    return C()
-
-
 def _validate(file, *, parser, config, error_formatter, path=None):
     for node in parser.iter_docstring(file):
-        validator = Validator(
-            include_private=config.include_private,
-            exclude_magic=config.exclude_magic,
-            checks=config.get_checks(),
-        )
+        validator = Validator(config)
 
         for error in validator.validate(node):
-            if config.ignore is None or error.code not in config.ignore:
-                error_formatter.add_error(
-                    path.name if path is not None else file.name, node, error
-                )
+            error_formatter.add_error(
+                path.name if path is not None else file.name, node, error
+            )
 
 
 def run() -> None:
@@ -160,9 +50,9 @@ def run() -> None:
             path = None
 
         if not config.is_defined and path and path.exists():
-            config = _config_from_pyproject(path)
+            config = load_config_from_pyproject(path)
 
-        if path is None or (path is not None and not config.is_excluded(path)):
+        if path is None or (path is not None and not config.is_path_excluded(path)):
             _validate(
                 sys.stdin,
                 parser=parser,
@@ -177,9 +67,9 @@ def run() -> None:
             sys.exit(2)
 
         if not config.is_defined:
-            config = _config_from_pyproject(root)
+            config = load_config_from_pyproject(root)
 
-        if root.is_file() and not config.is_excluded(root):
+        if root.is_file() and not config.is_path_excluded(root):
             with root.open("r", encoding="utf-8") as file:
                 _validate(
                     file,
@@ -189,7 +79,7 @@ def run() -> None:
                 )
         else:
             for path in root.rglob("*.py"):
-                if config.exclude and config.is_excluded(path):
+                if config.exclude and config.is_path_excluded(path):
                     continue
 
                 with path.open("r", encoding="utf-8") as file:
