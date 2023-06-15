@@ -61,12 +61,12 @@ class GL01(Check):
 
 
 class GL02(Check):
-    """Validates that there are 1 blank line before the end quote."""
+    """Validates that there are no blank lines before the end quote."""
 
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        if len(docstring.lines) > 1 and empty_suffix_lines(docstring.lines) != 2:
+        if len(docstring.lines) > 1 and empty_suffix_lines(docstring.lines) != 1:
             yield Error(
                 start=docstring.lines[-1].pos,
                 end=docstring.lines[-1].pos,

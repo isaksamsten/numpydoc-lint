@@ -57,13 +57,14 @@ def test_GL02_multiline_no_blank():
     code = '''
 def f():
     """Summary
+
     """
     pass
 '''
     node, docstring, errors, warnings = check_docstring(code, GL02())
     assert len(warnings) == 1
     assert warnings[0].code == "GL02"
-    assert warnings[0].start == Pos(4, 5)
+    assert warnings[0].start == Pos(5, 5)
 
     node, docstring, errors, warnings = check_docstring(code, GL01())
     assert len(warnings) == 1
@@ -79,7 +80,7 @@ def f():
     pass
 '''
     node, docstring, errors, warnings = check_docstring(code, GL02())
-    assert len(warnings) == 0
+    assert len(warnings) == 1
 
 
 def test_GL03_multiple_blank_lines():
