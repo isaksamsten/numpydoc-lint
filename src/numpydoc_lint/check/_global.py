@@ -105,10 +105,9 @@ class I0010(Check):
         if docstring.summary:
             data = docstring.summary.content.data
             if data and data[0].value[-1] != ".":
-                yield Error(
+                yield self.new_error(
                     start=data[0].pos,
                     end=data[0].pos.move(absolute_column=len(data[0].value) + 1),
-                    code="I0010",
                     suggestion="Insert a period.",
                 )
 
