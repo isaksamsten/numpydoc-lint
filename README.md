@@ -45,35 +45,45 @@ The `input` is zero or more file paths. If no path is specified, lint code on `s
 
 ## Examples
 
+With detailed output:
+
+```
+$ numpydoc-lint src/wildboar/transform/_sax.py --format full --ignore H0000 H0002
+error[I0002]: Docstring should not have blank lines before end quote
+   --> src/wildboar/transform/_sax.py:332:5
+330 |         The symbolic aggregate approximation.
+331 |
+332 |     """
+    |     ^
+    |     |
+    |     Remove empty line.
+error[I0002]: Docstring should not have blank lines before end quote
+   --> src/wildboar/transform/_sax.py:363:5
+361 |         The symbolic aggregate approximation.
+362 |
+363 |     """
+    |     ^
+    |     |
+    |     Remove empty line.
+error[W0101]: Parameter `window` should be documented.
+   --> src/wildboar/transform/_sax.py:247:44
+245 |     }
+246 |
+247 |     def __init__(self, n_intervals="sqrt", window=None):
+    |                                            ^^^^^^^^^^^
+    |                                                      |
+    |                                                      Add documentation for `window`.
+Found 3 errors.
+```
+
 With simple output:
 
 ```
-$ numpydoc-lint src/ --format=simple --exclude "src/*/test.py" --ignore GL ES RT
-src/numpydoc_lint/numpydoc.py:79:4:79:71: PR01 Parameter `l` should be documented.
-src/numpydoc_lint/numpydoc.py:92:4:92:8: PR09 Parameter `data` description should end with period.
-src/numpydoc_lint/numpydoc.py:92:4:92:8: PRE02 Parameter `data` description has empty suffix lines.
-```
-
-With full output:
-
-```
-$ numpydoc-lint src/ --format=full --ignore GL ES RT
-error[PR06]: Parameter `a` uses empty choice.
-   --> src/numpydoc_lint/test.py:128:7
-126 |     Parameters
-127 |     ----------
-128 |     a :{}
-    |        ^^
-    |         |
-    |         Insert choices.
-error[PR06]: Parameter `q` uses wrong type.
-   --> src/numpydoc_lint/test.py:130:8
-128 |     a :{}
-129 |         test a
-130 |     q : integer
-    |         ^^^^^^^
-    |               |
-    |               Use `int` instead of `integer`.
+❯ numpydoc-lint src/wildboar/transform/_sax.py --format simple --ignore H0000 H0002
+src/wildboar/transform/_sax.py:332:5:332:5: I0002 Docstring should not have blank lines before end quote
+src/wildboar/transform/_sax.py:363:5:363:5: I0002 Docstring should not have blank lines before end quote
+src/wildboar/transform/_sax.py:247:44:247:55: W0101 Parameter `window` should be documented.
+Found 3 errors.
 ```
 
 # Editor integration
