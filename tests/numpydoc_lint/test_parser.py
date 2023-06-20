@@ -52,7 +52,7 @@ class Test:
     assert parameters[0].annotation == "str"
 
 
-def test_parse_function_parameters():
+def test_parse_docstring_function_parameters():
     code = '''
 def t(x):
     """Parameters
@@ -68,7 +68,7 @@ def t(x):
 
     func, errors = parse_docstring(code)
     assert len(errors) == 0
-    parameters = func.sections.get("Parameters")
+    parameters = func.sections.get("parameters")
     assert parameters is not None
 
     assert parameters.name.start.line == 3
@@ -103,9 +103,9 @@ def f():
 '''
     func, errors = parse_docstring(code, nth=1)  # F
     assert len(errors) == 2
-    assert errors[0].code == "ER01"
+    assert errors[0].code == "E0001"
     assert errors[0].start.line == 7
-    assert errors[1].code == "ER01"
+    assert errors[1].code == "E0001"
     assert errors[1].start.line == 11
 
 
@@ -138,7 +138,7 @@ def f():
     """
 '''
     doc, errors = parse_docstring(code, nth=1)
-    assert "Parameters" in doc.sections
+    assert "parameters" in doc.sections
     assert doc.lines[-1].pos.line == 10
     assert len(doc.lines) == 7
     assert doc.lines[4].value == "    a : obj lol"
@@ -187,11 +187,11 @@ def f():
 '''
     doc, errors = parse_docstring(code, nth=1)
     assert len(errors) == 3
-    assert errors[0].code == "ER06"
+    assert errors[0].code == "E0003"
     assert errors[0].start == Pos(8, 5)
 
-    assert errors[1].code == "ER05"
+    assert errors[1].code == "E0002"
     assert errors[1].start == Pos(14, 5)
 
-    assert errors[2].code == "ER06"
+    assert errors[2].code == "E0003"
     assert errors[2].start == Pos(17, 5)

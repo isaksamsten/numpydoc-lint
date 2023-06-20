@@ -2,7 +2,8 @@ import re
 from abc import ABCMeta, abstractmethod
 from typing import Generator, List, Optional
 
-from .._model import DocString, DocStringParameter, Line, Error
+from .._error import make_error
+from .._model import DocString, DocStringParameter, Line, Error, Pos
 from ..numpydoc import Node
 
 DIRECTIVES = ["versionadded", "versionchanged", "deprecated"]
@@ -38,6 +39,22 @@ class Check(metaclass=ABCMeta):
         if doc.has_docstring:
             yield from self._validate(doc, docstring)
 
+    def new_error(
+        self,
+        start: Pos,
+        end: Pos = None,
+        code: str = None,
+        suggestion: str = None,
+        message_args: dict = None,
+    ) -> Error:
+        return make_error(
+            self.name if code is None else code,
+            message_args=message_args,
+            start=start,
+            end=end,
+            suggestion=suggestion,
+        )
+
     @property
     def name(self):
         return self.__class__.__name__
@@ -61,7 +78,7 @@ def _validate_parameter_has_description(
     docstring: DocString,
     parameter: DocStringParameter,
     code: str,
-    message: str,
+    message_args: dict,
     suggestion: str,
 ) -> Generator[Error, None, None]:
     if not parameter.description.data or all(
@@ -69,11 +86,11 @@ def _validate_parameter_has_description(
         for line in _before_directive(parameter.description.data)
     ):
         name = parameter.name if parameter.name is not None else parameter.types[0]
-        yield Error(
+        yield make_error(
             start=name.start,
             end=name.end,
             code=code,
-            message=message,
+            message_args=message_args,
             suggestion=suggestion,
         )
 
@@ -84,7 +101,7 @@ def _validate_parameter_description_start_uppercase(
     docstring: DocString,
     parameter: DocStringParameter,
     code: str,
-    message: str,
+    message_args: dict,
     suggestion: str,
 ) -> Generator[Error, None, None]:
     data = _before_directive(parameter.description.data)
@@ -92,11 +109,11 @@ def _validate_parameter_description_start_uppercase(
         first = data[0].value.lstrip()
         if first and first[0].isalpha() and not first[0].isupper():
             name = parameter.name if parameter.name is not None else parameter.types[0]
-            yield Error(
+            yield make_error(
                 start=name.start,
                 end=name.end,
                 code=code,
-                message=message,
+                message_args=message_args,
                 suggestion=suggestion,
             )
 
@@ -107,7 +124,7 @@ def _validate_parameter_description_ends_period(
     docstring: DocString,
     parameter: DocStringParameter,
     code: str,
-    message: str,
+    message_args: str,
     suggestion: str,
 ) -> Generator[Error, None, None]:
     data = _before_directive(parameter.description.data)
@@ -128,11 +145,10 @@ def _validate_parameter_description_ends_period(
                 name = (
                     parameter.name if parameter.name is not None else parameter.types[0]
                 )
-                yield Error(
+                yield make_error(
                     start=name.start,
                     end=name.end,
                     code=code,
-                    message=message,
                     suggestion=suggestion,
                 )
 
@@ -157,6 +173,6 @@ def empty_suffix_lines(lines: List[Line]):
 
 def first_non_blank(lines: List[Line]) -> Optional[Line]:
     for line in lines:
-        if not line.value.strip():
+        if line.value.strip():
             return line
     return None

@@ -2,28 +2,27 @@ from dataclasses import dataclass
 
 import pytest
 from numpydoc_lint.numpydoc import Parser, Pos
-from numpydoc_lint.validate import (
-    Error,
-    GL01,
-    PR09,
-    PR01,
-    PR02,
-    PR03,
-    PR04,
-    PR05,
-    PR06,
-    PR07,
-    PR08,
-    PR09,
-    PR10,
-    PRE01,
-    PRE02,
-    PRE03,
+from numpydoc_lint.check import (
+    I0001,
+    I0102,
+    W0101,
+    W0102,
+    W0103,
+    W0104,
+    E0101,
+    E0102,
+    W0105,
+    I0101,
+    I0102,
+    W0106,
+    I0103,
+    I0104,
+    I0105,
 )
 from common import check_docstring
 
 
-def test_PR01_with_parameters_section():
+def test_W0101_with_parameters_section():
     code = '''
 def test(p, x, y):
     """Parameters
@@ -35,26 +34,65 @@ def test(p, x, y):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR01())
+    func, docstring, errors, warnings = check_docstring(code, W0101())
     assert len(errors) == 0
-    assert warnings[0].code == "PR01"
+    assert warnings[0].code == "W0101"
     assert warnings[0].start == Pos(line=2, column=16)
 
 
-def test_PR01_without_parameters_section():
+def test_W0101_without_parameters_section():
     code = '''
 def test(p, x, y):
     """Summary."""
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR01())
+    func, docstring, errors, warnings = check_docstring(code, W0101())
     assert len(errors) == 0
     assert len(warnings) == 3
-    assert warnings[0].code == "PR01"
+    assert warnings[0].code == "W0101"
     assert warnings[0].start == Pos(line=2, column=10)
 
 
-def test_PR02_parameter_does_not_exist():
+def test_W0101_with_other_parameters():
+    code = '''
+def test(p, x, y):
+    """
+    Summary.
+
+    Other Parameters
+    ----------------
+    p : int
+    x : str
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, W0101())
+    assert len(warnings) == 1
+    assert warnings[0].start == Pos(2, 16)
+
+
+def test_W0101_with_other_parameters_and_parameters():
+    code = '''
+def test(p, x, y):
+    """
+    Summary.
+
+    Parameters
+    ----------
+    y : int
+
+    Other Parameters
+    ----------------
+    p : int
+    x : str
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, W0101())
+    assert len(warnings) == 0
+
+
+def test_W0102_parameter_does_not_exist():
     code = '''
 def test(a):
     """
@@ -64,17 +102,22 @@ def test(a):
         Test
     b : int
         Test
+
+    Other Parameters
+    ----------------
+    c : int
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR02())
-    assert len(warnings) == 1
-    assert warnings[0].code == "PR02"
+    func, docstring, errors, warnings = check_docstring(code, W0102())
+    assert len(warnings) == 2
+    assert warnings[0].code == "W0102"
     assert "`b`" in warnings[0].message
     assert warnings[0].start == Pos(8, 5)
+    assert "`c`" in warnings[1].message
 
 
-def test_PR03_parameter_wrong_order():
+def test_W0103_parameter_wrong_order():
     code = '''
 def test(b, aaa):
     """
@@ -87,20 +130,47 @@ def test(b, aaa):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR03())
+    func, docstring, errors, warnings = check_docstring(code, W0103())
     assert len(warnings) == 2
-    assert warnings[0].code == "PR03"
+    assert warnings[0].code == "W0103"
     assert "`aaa`" in warnings[0].message
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 8)
 
-    assert warnings[1].code == "PR03"
+    assert warnings[1].code == "W0103"
     assert "`b`" in warnings[1].message
     assert warnings[1].start == Pos(8, 5)
     assert warnings[1].end == Pos(8, 6)
 
 
-def test_PR04_type_declaration_missing():
+def test_W0103_parameter_wrong_order_other_parameters_wrong_order():
+    code = '''
+def test(b, aaa, x, z, y):
+    """
+    Parameters
+    ----------
+    aaa : int
+        Test
+    b : int
+        Test
+
+    Other Parameters
+    ----------------
+    x : int
+    y : int
+    z : int
+    """
+    pass
+'''
+    func, docstring, errors, warnings = check_docstring(code, W0103())
+    assert len(warnings) == 4
+    assert "`aaa`" in warnings[0].message
+    assert "`b`" in warnings[1].message
+    assert "`y`" in warnings[2].message
+    assert "`z`" in warnings[3].message
+
+
+def test_W0104_type_declaration_missing():
     code = '''
 def test(b, aaa: int):
     """
@@ -113,16 +183,16 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR04())
+    func, docstring, errors, warnings = check_docstring(code, W0104())
     assert len(warnings) == 1
-    assert warnings[0].code == "PR04"
+    assert warnings[0].code == "W0104"
     assert "`int`" in warnings[0].suggestion
     assert "`aaa`" in warnings[0].message
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 8)
 
 
-def test_PR05_period_ends_type():
+def test_E0101_period_ends_type():
     code = '''
 def test(b, aaa: int):
     """
@@ -135,18 +205,18 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR05())
+    func, docstring, errors, warnings = check_docstring(code, E0101())
     assert len(warnings) == 2
-    assert warnings[0].code == "PR05"
+    assert warnings[0].code == "E0101"
     assert warnings[0].start == Pos(6, 15)
     assert warnings[0].end == Pos(6, 15)
 
-    assert warnings[1].code == "PR05"
+    assert warnings[1].code == "E0101"
     assert warnings[1].start == Pos(8, 23)
     assert warnings[1].end == Pos(8, 23)
 
 
-def test_PR05_period_ends_type_optional():
+def test_E0101_period_ends_type_optional():
     """
     Summary.
 
@@ -166,13 +236,13 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR05())
+    func, docstring, errors, warnings = check_docstring(code, E0101())
     assert len(warnings) == 1
-    assert warnings[0].code == "PR05"
+    assert warnings[0].code == "E0101"
     assert warnings[0].start == Pos(6, 34)
 
 
-def test_PR06_wrong_type():
+def test_E0102_wrong_type():
     code = '''
 def test(b, aaa: int):
     """
@@ -190,30 +260,30 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR06())
+    func, docstring, errors, warnings = check_docstring(code, E0102())
     assert len(warnings) == 4
-    assert warnings[0].code == "PR06"
+    assert warnings[0].code == "E0102"
     assert "`b`" in warnings[0].message
     assert warnings[0].start == Pos(6, 16)
     assert warnings[0].end == Pos(6, 22)
 
-    assert warnings[1].code == "PR06"
+    assert warnings[1].code == "E0102"
     assert "`a`" in warnings[1].message
     assert warnings[1].start == Pos(8, 9)
     assert warnings[1].end == Pos(8, 16)
 
-    assert warnings[2].code == "PR06"
+    assert warnings[2].code == "E0102"
     assert "`c`" in warnings[2].message
     assert warnings[2].start == Pos(10, 16)
     assert warnings[2].end == Pos(10, 23)
 
-    assert warnings[3].code == "PR06"
+    assert warnings[3].code == "E0103"
     assert "`d`" in warnings[3].message
     assert warnings[3].start == Pos(12, 9)
     assert warnings[3].end == Pos(12, 12)
 
 
-def test_PR07_no_description():
+def test_W0105_no_description():
     code = '''
 def test(b, aaa: int):
     """
@@ -226,14 +296,14 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR07())
+    func, docstring, errors, warnings = check_docstring(code, W0105())
     assert len(warnings) == 1
-    assert warnings[0].code == "PR07"
+    assert warnings[0].code == "W0105"
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 6)
 
 
-def test_PR08_not_uppercase():
+def test_I0101_not_uppercase():
     code = '''
 def test(b, aaa: int):
     """
@@ -250,14 +320,14 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR08())
+    func, docstring, errors, warnings = check_docstring(code, I0101())
     assert len(warnings) == 1
-    assert warnings[0].code == "PR08"
+    assert warnings[0].code == "I0101"
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 6)
 
 
-def test_PR09_no_period():
+def test_I0102_no_period():
     code = '''
 def test(b, aaa: int):
     """
@@ -272,32 +342,14 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR09())
+    func, docstring, errors, warnings = check_docstring(code, I0102())
     assert len(warnings) == 2
-    assert warnings[0].code == "PR09"
+    assert warnings[0].code == "I0102"
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 6)
 
 
-def test_PR09_raw_string():
-    code = r'''
-def test(p):
-    r"""Parameters
-    ----------
-    p : object\
-            test
-        Test test test '\n'.
-    """
-    pass
-    '''
-    node, docstring, errors, warnings = check_docstring(code, PR09())
-    assert docstring.sections["Parameters"].contents[0].types[0].value == "object\\"
-    assert docstring is None
-    assert docstring.sections["Parameters"].contents[0].description[1] == None
-    assert len(errors) == 0
-
-
-def test_PR10_no_space():
+def test_W0106_no_space():
     code = '''
 def test(b, aaa: int):
     """
@@ -313,23 +365,23 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR10())
+    func, docstring, errors, warnings = check_docstring(code, W0106())
     print(warnings)
     assert len(warnings) == 3
-    assert warnings[0].code == "PR10"
+    assert warnings[0].code == "W0106"
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 7)
 
-    assert warnings[1].code == "PR10"
+    assert warnings[1].code == "W0106"
     assert warnings[1].start == Pos(8, 7)
     assert warnings[1].end == Pos(8, 9)
 
-    assert warnings[2].code == "PR10"
+    assert warnings[2].code == "W0106"
     assert warnings[2].start == Pos(10, 5)
     assert warnings[2].end == Pos(10, 7)
 
 
-def test_PRE01_has_empty_prefix_lines():
+def test_I0103_has_empty_prefix_lines():
     code = '''
 def test(b, aaa: int):
     """
@@ -347,13 +399,13 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PRE01())
+    func, docstring, errors, warnings = check_docstring(code, I0103())
     assert len(warnings) == 2
     assert warnings[0].start == Pos(6, 5)
     assert warnings[1].start == Pos(13, 5)
 
 
-def test_PRE01_has_empty_prefix_lines():
+def test_I0103_has_empty_prefix_lines():
     code = '''
 def test(b, aaa: int):
     """
@@ -371,18 +423,18 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PRE02())
+    func, docstring, errors, warnings = check_docstring(code, I0104())
     assert len(warnings) == 2
     assert warnings[0].start == Pos(6, 5)
     assert warnings[1].start == Pos(13, 5)
 
     assert len(warnings) == 1
-    assert warnings[0].code == "PR08"
+    assert warnings[0].code == "I0101"
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 6)
 
 
-def test_PR09_no_period():
+def test_I0102_no_period():
     code = '''
 def test(b, aaa: int):
     """
@@ -397,14 +449,14 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR09())
+    func, docstring, errors, warnings = check_docstring(code, I0102())
     assert len(warnings) == 2
-    assert warnings[0].code == "PR09"
+    assert warnings[0].code == "I0102"
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 6)
 
 
-def test_PR09_raw_string():
+def test_I0102_raw_string_space():
     code = r'''
 def test(p):
     r"""Parameters
@@ -415,16 +467,16 @@ def test(p):
     """
     pass
     '''
-    node, docstring, errors, warnings = check_docstring(code, PR09())
-    assert docstring.sections["Parameters"].contents[0].types[0].value == "object\\"
+    node, docstring, errors, warnings = check_docstring(code, I0102())
+    assert docstring.sections["parameters"].contents[0].types[0].value == "object\\"
     assert (
-        docstring.sections["Parameters"].contents[0].description.data[0].value
+        docstring.sections["parameters"].contents[0].description.data[0].value
         == "        test"
     )
     assert len(errors) == 0
 
 
-def test_PR10_no_space():
+def test_W0106_no_space():
     code = '''
 def test(b, aaa: int):
     """
@@ -440,23 +492,23 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PR10())
+    func, docstring, errors, warnings = check_docstring(code, W0106())
     print(warnings)
     assert len(warnings) == 3
-    assert warnings[0].code == "PR10"
+    assert warnings[0].code == "W0106"
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 7)
 
-    assert warnings[1].code == "PR10"
+    assert warnings[1].code == "W0106"
     assert warnings[1].start == Pos(8, 7)
     assert warnings[1].end == Pos(8, 9)
 
-    assert warnings[2].code == "PR10"
+    assert warnings[2].code == "W0106"
     assert warnings[2].start == Pos(10, 5)
     assert warnings[2].end == Pos(10, 7)
 
 
-def test_PRE01_has_empty_prefix_lines():
+def test_I0103_has_empty_prefix_lines():
     code = '''
 def test(b, aaa: int):
     """
@@ -474,12 +526,12 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PRE01())
+    func, docstring, errors, warnings = check_docstring(code, I0103())
     assert len(warnings) == 1
     assert warnings[0].start == Pos(6, 5)
 
 
-def test_PRE01_PRE02_correct():
+def test_I0103_I0104_correct():
     code = '''
 def test(b, aaa: int):
     """
@@ -495,13 +547,13 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PRE01())
+    func, docstring, errors, warnings = check_docstring(code, I0103())
     assert len(warnings) == 0
-    func, docstring, errors, warnings = check_docstring(code, PRE02())
+    func, docstring, errors, warnings = check_docstring(code, I0104())
     assert len(warnings) == 0
 
 
-def test_PRE03_multiple_optional():
+def test_I0105_multiple_optional():
     code = '''
 def test(b, aaa: int):
     """
@@ -517,6 +569,6 @@ def test(b, aaa: int):
     """
     pass
 '''
-    func, docstring, errors, warnings = check_docstring(code, PRE03())
+    func, docstring, errors, warnings = check_docstring(code, I0105())
     assert len(warnings) == 1
     assert warnings[0].start == Pos(8, 5)

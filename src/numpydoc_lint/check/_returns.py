@@ -30,41 +30,35 @@ class ReturnCheck(Check, metaclass=ABCMeta):
         pass
 
 
-class RT01(ReturnCheck):
-    def _validate_returns(
-        self,
-        docstring: DocString,
-        n_returns: int,
+class H0005(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
-        returns = docstring.sections.get("Returns")
-        if n_returns > 0 and not returns:
-            yield Error(
-                start=docstring.end,
-                end=docstring.end,
-                code="RT01",
-                message="No return section found.",
+        returns = docstring.sections.get("returns")
+        if node.type in ("function", "method") and node.returns > 0 and not returns:
+            yield self.new_error(
+                start=node.name.end,
+                end=node.name.end,
                 suggestion="Declare return section.",
             )
 
 
-class RT02(ReturnCheck):
+class W0401(ReturnCheck):
     def _validate_returns(
         self,
         docstring: DocString,
         n_returns: int,
     ) -> Generator[Error, None, None]:
-        returns = docstring.sections.get("Returns")
+        returns = docstring.sections.get("returns")
         if (
             returns
             and len(returns.contents) == 1
             and returns.contents[0].name is not None
         ):
             ret = returns.contents[0]
-            yield Error(
+            yield self.new_error(
                 start=ret.name.start,
                 end=ret.name.end,
-                code="RT02",
-                message="Single return should only contain the type.",
                 suggestion="Remove the name `{}`.".format(ret.name.value),
             )
 
@@ -75,7 +69,7 @@ class ReturnDescriptionCheck(ReturnCheck, metaclass=ABCMeta):
         docstring: DocString,
         n_returns: int,
     ) -> Generator[Error, None, None]:
-        returns = docstring.sections.get("Returns")
+        returns = docstring.sections.get("returns")
         if returns:
             for ret in returns.contents:
                 yield from self._validate_parameter_description(docstring, ret)
@@ -87,7 +81,7 @@ class ReturnDescriptionCheck(ReturnCheck, metaclass=ABCMeta):
         pass
 
 
-class RT03(ReturnDescriptionCheck):
+class W0402(ReturnDescriptionCheck):
     def _validate_parameter_description(
         self, docstring: DocString, parameter: DocStringParameter
     ) -> Generator[Error, None, None]:
@@ -99,13 +93,13 @@ class RT03(ReturnDescriptionCheck):
         yield from _validate_parameter_has_description(
             docstring=docstring,
             parameter=parameter,
-            code="RT03",
-            message="Return `{}` has no description.".format(name),
+            message_args={"return": name},
+            code="W0402",
             suggestion="Add description.",
         )
 
 
-class RT04(ReturnDescriptionCheck):
+class I0401(ReturnDescriptionCheck):
     def _validate_parameter_description(
         self, docstring: DocString, parameter: DocStringParameter
     ) -> Generator[Error, None, None]:
@@ -117,15 +111,13 @@ class RT04(ReturnDescriptionCheck):
         yield from _validate_parameter_description_start_uppercase(
             docstring=docstring,
             parameter=parameter,
-            code="RT04",
-            message=(
-                "Return `{}` description should start with uppercase letter."
-            ).format(name),
+            message_args={"return": name},
+            code="I0401",
             suggestion="Change first letter to uppercase.",
         )
 
 
-class RT05(ReturnDescriptionCheck):
+class I0402(ReturnDescriptionCheck):
     def _validate_parameter_description(
         self, docstring: DocString, parameter: DocStringParameter
     ) -> Generator[Error, None, None]:
@@ -137,7 +129,7 @@ class RT05(ReturnDescriptionCheck):
         yield from _validate_parameter_description_ends_period(
             docstring=docstring,
             parameter=parameter,
-            code="RT05",
-            message=("Return `{}` description should end with period.").format(name),
+            message_args={"return": name},
+            code="I0402",
             suggestion="Add period to end of description.",
         )

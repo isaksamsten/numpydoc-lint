@@ -9,7 +9,7 @@ from ..numpydoc import (
     DIRECTIVE_PATTERN,
     DEPRECATED_START_PATTERN,
 )
-from ._base import Check, Error, empty_suffix_lines
+from ._base import Check, Error, empty_suffix_lines, first_non_blank
 
 
 def _find_deprectated(paragraph: DocStringParagraph):
@@ -23,7 +23,149 @@ def _find_deprectated(paragraph: DocStringParagraph):
                 )
 
 
-class GL01(Check):
+class H0004(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if node.type in ("function", "method"):
+            if not docstring.sections.get("yields") and node.yields > 0:
+                yield self.new_error(
+                    start=node.name.start,
+                    end=node.name.end,
+                    suggestion="Add a Yields section",
+                )
+
+
+class H0002(Check):
+    def _validate(
+        self,
+        node: Node,
+        docstring: DocString,
+    ) -> Generator[Error, None, None]:
+        if not docstring.sections.get("examples"):
+            yield self.new_error(
+                start=node.name.start,
+                end=node.name.end,
+                suggestion="Add an Examples section.",
+            )
+
+
+class H0001(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if not docstring.summary.extended_content:
+            yield self.new_error(
+                start=docstring.start,
+                end=docstring.start.move(column=3),
+                code="H0001",
+            )
+
+
+class H0003(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if not docstring.summary:
+            yield self.new_error(
+                start=docstring.start,
+                code="H0003",
+                suggestion="Add a short summary in a single line",
+            )
+
+
+class I0009(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if docstring.summary:
+            data = docstring.summary.content.data
+            first_line = first_non_blank(data)
+            if not first_line:
+                return
+
+            first_letter = first_line.value.strip()[0]
+            if first_letter.isalpha() and not first_letter.isupper():
+                column = len(first_line.value) - len(first_line.value.lstrip())
+                yield self.new_error(
+                    start=first_line.pos,
+                    code="I0009",
+                    suggestion=(
+                        f"Replace `{first_letter}` with `{first_letter.upper()}`"
+                    ),
+                )
+
+
+class I0010(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if docstring.summary:
+            data = docstring.summary.content.data
+            if data and data[0].value[-1] != ".":
+                yield Error(
+                    start=data[0].pos,
+                    end=data[0].pos.move(absolute_column=len(data[0]) + 1),
+                    code="I0010",
+                    suggestion="Insert a period.",
+                )
+
+
+class I0011(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if docstring.summary:
+            data = docstring.summary.content.data
+            indent = docstring.indent
+            first_line_indent = len(data[0].value) - len(data[0].value.lstrip())
+            if first_line_indent != indent:
+                yield self.new_error(
+                    start=data[0].pos.move(
+                        absolute_column=indent,
+                    ),
+                    end=data[0].pos.move(absolute_column=first_line_indent),
+                    code="I0011",
+                    suggestion="Remove leading whitespace.",
+                )
+
+
+class I0012(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if docstring.summary is None:
+            return
+
+        data = docstring.summary.content.data
+        if node.type in ["function", "method"] and data:
+            match = re.match(r"^\s*(.*?)\s+", data[0].value)
+            if match:
+                word = match.group(1).strip()
+                if word != "" and word[-1] == "s":
+                    yield self.new_error(
+                        start=data[0].pos.move(absolute_column=match.start(1)),
+                        end=data[0].pos.move(absolute_column=match.end(1)),
+                        suggestion="Remove third person `s`",
+                    )
+
+
+class I0013(Check):
+    def _validate(
+        self, node: Node, docstring: DocString
+    ) -> Generator[Error, None, None]:
+        if docstring.summary is None:
+            return
+
+        data = docstring.summary.content.data
+        if len(data) > 1:
+            yield self.new_error(
+                start=data[0].pos,
+                end=data[-1].pos,
+            )
+
+
+class I0001(Check):
     """Check that multiline docstrings has 1 blank line before summary."""
 
     def _validate(
@@ -36,31 +178,27 @@ class GL01(Check):
             and docstring.summary.content.start.line != docstring.start.line + 1
             and docstring.start.line < docstring.end.line
         ):
-            yield Error(
+            yield self.new_error(
                 start=docstring.summary.content.data[0].pos,
                 end=docstring.summary.content.data[0].pos,
-                code="GL01",
-                message="Docstring should start on a new line.",
             )
 
 
-class GL02(Check):
+class I0002(Check):
     """Validates that there are no blank lines before the end quote."""
 
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
         if len(docstring.lines) > 1 and empty_suffix_lines(docstring.lines) != 1:
-            yield Error(
+            yield self.new_error(
                 start=docstring.lines[-1].pos,
                 end=docstring.lines[-1].pos,
-                code="GL02",
-                message="Docstring should end without blank lines.",
                 suggestion="Remove empty line.",
             )
 
 
-class GL03(Check):
+class I0003(Check):
     """Validate that the docstring don't contain multiple consecutive blank lines."""
 
     # TODO: improve start/end position
@@ -75,16 +213,14 @@ class GL03(Check):
                     and not current_line.value.strip()
                     and i < len(docstring.lines) - 2
                 ):
-                    yield Error(
-                        code="GL03",
+                    yield self.new_error(
                         start=prev_line.pos,
                         end=current_line.pos,
-                        message="Docstring should not contain double line breaks.",
                     )
                 prev_line = current_line
 
 
-class GL05(Check):
+class I0004(Check):
     """Validate that the docstring only contain leading spaces."""
 
     def _validate(self, node: Node, docstring: DocString) -> Optional[Error]:
@@ -93,34 +229,32 @@ class GL05(Check):
                 yield Error(
                     start=line.pos.move(absolute_column=match.start(1) + 1),
                     end=line.pos.move(absolute_column=match.end(1) + 1),
-                    code="GL05",
+                    code="I0004",
                     message="Docstring line should not start with tabs.",
                 )
 
 
-class GL06(Check):
+class W0001(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
         for name, section in docstring.sections.items():
-            if name not in ALLOWED_SECTIONS:
-                yield Error(
+            if section.name.value not in ALLOWED_SECTIONS:
+                yield self.new_error(
                     start=section.name.start,
                     end=section.name.end,
-                    code="GL06",
-                    message="Docstring contains unexpected section.",
                     suggestion="Remove section or fix spelling.",
                 )
 
 
-class GL07(Check):
+class I0005(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
         expected_sections = [
             section
             for section in ALLOWED_SECTIONS
-            if section in docstring.sections.keys()
+            if section.lower() in docstring.sections.keys()
         ]
         actual_sections = [
             section
@@ -129,18 +263,18 @@ class GL07(Check):
         ]
         for expected_section, actual_section in zip(expected_sections, actual_sections):
             if expected_section != actual_section.name.value:
-                yield Error(
+                yield self.new_error(
+                    message_args={
+                        "actual": actual_section.name.value,
+                        "expected": expected_section,
+                    },
                     start=actual_section.name.start,
                     end=actual_section.name.end,
-                    code="GL07",
-                    message="Section `{}` should be swapped with `{}`.".format(
-                        actual_section.name.value, expected_section
-                    ),
                     suggestion=f"Section should be `{expected_section}`",
                 )
 
 
-class GL09(Check):
+class I0006(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
@@ -153,19 +287,16 @@ class GL09(Check):
                 paragraph = docstring.summary.extended_content
                 deprecated_start, deprecated_end = deprecated_markers[0]
                 if deprecated_start.line != paragraph.start.line:
-                    yield Error(
+                    yield self.new_error(
                         start=deprecated_start,
                         end=deprecated_end,
-                        code="GL09",
-                        message="Deprecation warning should precede extended summary.",
                         suggestion=(
                             f"Move deprecation warning to line {paragraph.start.line}"
                         ),
                     )
 
 
-# TODO: Extended
-class GLE01(Check):
+class I0007(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
@@ -190,31 +321,24 @@ class GLE01(Check):
                     where = f"lines {offending_lines} and {offenders[-1][0].line}"
 
                 for start, end in offenders:
-                    yield Error(
+                    yield self.new_error(
                         start=start,
                         end=end,
-                        code="GLE01",
-                        message=(
-                            "Summary should only contain a single deprecation "
-                            "warning."
-                        ),
                         suggestion=(
                             f"Remove duplicate deprecation warnings on {where}"
                         ),
                     )
 
 
-class GL10(Check):
+class I0008(Check):
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
         for line in docstring.lines:
             match = re.match(DIRECTIVE_PATTERN, line.value)
             if match:
-                yield Error(
+                yield self.new_error(
                     start=line.pos.move(absolute_column=match.start(1) + 1),
                     end=line.pos.move(absolute_column=match.end(1) + 1),
-                    code="GL10",
-                    message="reST directives must be followed by two colon.",
-                    suggestion="Fix the directive by inserting `::`",
+                    suggestion="Fix the directive by inserting `::`.",
                 )

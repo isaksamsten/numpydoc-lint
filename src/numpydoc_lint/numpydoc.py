@@ -15,21 +15,22 @@ from ._model import (
     Pos,
     Line,
 )
+from ._error import make_error
 
 ALLOWED_SECTIONS = [
-    "Parameters",
-    "Attributes",
-    "Methods",
-    "Returns",
-    "Yields",
-    "Other Parameters",
-    "Raises",
-    "Warns",
-    "Warnings",
-    "See Also",
-    "Notes",
-    "References",
-    "Examples",
+    "Parameters",  # 01
+    "Attributes",  # 02
+    "Methods",  # 03
+    "Returns",  # 04
+    "Yields",  # 05
+    "Other Parameters",  # 06
+    "Raises",  # 07
+    "Warns",  # 08
+    "Warnings",  # 09
+    "See Also",  # 10
+    "Notes",  # 11
+    "References",  # 12
+    "Examples",  # 13
 ]
 
 DIRECTIVES = ["versionadded", "versionchanged", "deprecated"]
@@ -342,14 +343,7 @@ def _parse_see_also(
     def parse_item_name(text: str, pos: Pos):
         match = _FUNC_PATTERN.match(text)
         if not match:
-            errors.append(
-                Error(
-                    start=pos,
-                    end=pos,
-                    code="ER02",
-                    message="Malformed item in `See Also`.",
-                )
-            )
+            errors.append(make_error(start=pos, end=pos, code="E1001"))
             return None
 
         role = match.group("role")
@@ -369,10 +363,9 @@ def _parse_see_also(
             description = match.group("desc")
             if match.group("trailing") and description:
                 errors.append(
-                    Error(
+                    make_error(
                         start=row.pos.move(absolute_column=match.end("trailing")),
-                        code="ER03",
-                        message="Unexpected comma or period after function list in `See Also`.",
+                        code="E1002",
                     )
                 )
 
@@ -401,12 +394,7 @@ def _parse_see_also(
             # 2) rest as DocStringParagraph
             items.append((funcs, rest))
         else:
-            errors.append(
-                Error(start=row.pos, code="ER04", message="Malformed `See Also` entry.")
-            )
-            # errors.flag(
-            #     message="Error parsing See also", line=start.line + i, abort=True
-            # )
+            errors.append(make_error(start=row.pos, code="E1003"))
 
     return items
 
@@ -535,13 +523,7 @@ def _parse_sections(
 
         # TODO: make the intent more clear with peek.
         if reader.peek(-1) and reader.peek(-1).value.strip():
-            errors.append(
-                Error(
-                    start=current_pos,
-                    code="ER01",
-                    message="Missing blank line before section",
-                )
-            )
+            errors.append(make_error(start=current_pos, code="E0001"))
 
         data = reader.read_to_next_header()
         if not data:
@@ -580,25 +562,24 @@ def _parse_sections(
 
             if not valid or len(name) != len(underline):
                 errors.append(
-                    Error(
+                    make_error(
                         start=data[1].pos,
                         end=data[1].pos.move(column=valid.end(0)),
-                        code="ER05",
-                        message="Section underline is too short or too long.",
+                        code="E0002",
                     )
                 )
 
             if name not in ALLOWED_SECTIONS:
                 errors.append(
-                    Error(
+                    make_error(
                         start=data[0].pos,
                         end=data[0].pos.move(column=len(name)),
-                        code="ER06",
-                        message="Unexpected section `{}`.".format(name),
+                        code="E0003",
+                        message_args={"section": name},
                     )
                 )
 
-            sections[name] = DocStringSection(
+            sections[lower_name] = DocStringSection(
                 name=DocStringName(
                     start=current_pos.move(absolute_column=column),
                     end=current_pos.move(absolute_column=column + len(name)),
@@ -714,11 +695,11 @@ class Node(metaclass=ABCMeta):
 
     def validate(self) -> Generator[Error, None, None]:
         if not self.has_docstring:
-            yield Error(
+            yield make_error(
                 start=self.name.start,
                 end=self.name.end,
-                code="GL08",  # We define GL08 here
-                message="Missing docstring in public {}.".format(self.type),
+                code="H0000",
+                message_args={"type": self.type},
             )
 
 

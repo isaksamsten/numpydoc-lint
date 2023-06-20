@@ -1,7 +1,7 @@
-# noqa: PR01
+# noqa: W0101
 """Test."""
 
-# noqa: SS03
+# noqa: I0010
 MY_CONST = "hello world"
 r"""TEST.{MY_CONST} """
 #
@@ -112,7 +112,7 @@ r"""TEST.{MY_CONST} """
 import numpy as np
 
 
-# noqa: SS01
+# noqa: H0003
 class Test:
     # noqa: SS11
     def test(self):
@@ -164,7 +164,7 @@ def test(*, a: int, b, c, d: int = 20):
     pass
 
 
-# noqa: PR01
+# noqa: W0101
 def test_wrong_order(a, b, c):
     """
     Summary.

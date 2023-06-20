@@ -1,19 +1,29 @@
 from common import check_docstring
 from numpydoc_lint._model import Pos
-from numpydoc_lint.check import GL01, GL02, GL03, GL05, GL06, GL07, GL09, GLE01, GL10
+from numpydoc_lint.check import (
+    I0001,
+    I0002,
+    I0003,
+    I0004,
+    W0001,
+    I0005,
+    I0006,
+    I0007,
+    I0008,
+)
 
 
-def test_GL01_single_line():
+def test_I0001_single_line():
     code = '''
 def f():
     """Test"""
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL01())
+    node, docstring, errors, warnings = check_docstring(code, I0001())
     assert len(warnings) == 0
 
 
-def test_GL01_multiline_line_without_blank_line():
+def test_I0001_multiline_line_without_blank_line():
     code = '''
 def f():
     """Test
@@ -22,14 +32,14 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL01())
+    node, docstring, errors, warnings = check_docstring(code, I0001())
     assert len(warnings) == 1
-    assert warnings[0].code == "GL01"
+    assert warnings[0].code == "I0001"
     assert warnings[0].start == Pos(line=3, column=5)
     assert warnings[0].end == Pos(line=3, column=5)
 
 
-def test_GL01_multiline_correct():
+def test_I0001_multiline_correct():
     code = '''
 def f():
     """
@@ -39,21 +49,21 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL01())
+    node, docstring, errors, warnings = check_docstring(code, I0001())
     assert len(warnings) == 0
 
 
-def test_GL02_single_line_no_blank_after():
+def test_I0002_single_line_no_blank_after():
     code = '''
 def f():
     """Summary"""
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL02())
+    node, docstring, errors, warnings = check_docstring(code, I0002())
     assert len(warnings) == 0
 
 
-def test_GL02_multiline_no_blank():
+def test_I0002_multiline_no_blank():
     code = '''
 def f():
     """Summary
@@ -61,16 +71,16 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL02())
+    node, docstring, errors, warnings = check_docstring(code, I0002())
     assert len(warnings) == 1
-    assert warnings[0].code == "GL02"
+    assert warnings[0].code == "I0002"
     assert warnings[0].start == Pos(5, 5)
 
-    node, docstring, errors, warnings = check_docstring(code, GL01())
+    node, docstring, errors, warnings = check_docstring(code, I0001())
     assert len(warnings) == 1
 
 
-def test_GL02_multiline_blank():
+def test_I0002_multiline_blank():
     code = '''
 def f():
     """
@@ -79,11 +89,11 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL02())
+    node, docstring, errors, warnings = check_docstring(code, I0002())
     assert len(warnings) == 1
 
 
-def test_GL03_multiple_blank_lines():
+def test_I0003_multiple_blank_lines():
     code = '''
 def f():
     """
@@ -95,15 +105,15 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL03())
+    node, docstring, errors, warnings = check_docstring(code, I0003())
     print(warnings[0])
     assert len(warnings) == 1
-    assert warnings[0].code == "GL03"
+    assert warnings[0].code == "I0003"
     assert warnings[0].start == Pos(5, 5)
     assert warnings[0].end == Pos(6, 5)
 
 
-def test_GL03_single_blank_lines():
+def test_I0003_single_blank_lines():
     code = '''
 def f():
     """
@@ -114,11 +124,11 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL03())
+    node, docstring, errors, warnings = check_docstring(code, I0003())
     assert len(warnings) == 0
 
 
-def test_GL05_tabs():
+def test_I0004_tabs():
     code = '''
 def f():
     """
@@ -127,13 +137,13 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL05())
+    node, docstring, errors, warnings = check_docstring(code, I0004())
     assert len(warnings) == 1
-    assert warnings[0].code == "GL05"
+    assert warnings[0].code == "I0004"
     assert warnings[0].start == Pos(5, 1)
 
 
-def test_GL05_no_tabs():
+def test_I0004_no_tabs():
     code = '''
 def f():
     """
@@ -141,11 +151,11 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL05())
+    node, docstring, errors, warnings = check_docstring(code, I0004())
     assert len(warnings) == 0
 
 
-def test_GL06_invalid_section():
+def test_W0001_invalid_section():
     code = '''
 def f():
     """
@@ -159,14 +169,14 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL06())
+    node, docstring, errors, warnings = check_docstring(code, W0001())
     assert len(warnings) == 1
-    assert warnings[0].code == "GL06"
+    assert warnings[0].code == "W0001"
     assert warnings[0].start == Pos(4, 5)
     assert warnings[0].end == Pos(4, 5 + len("Invalid"))
 
 
-def test_GL07_wrong_order():
+def test_I0005_wrong_order():
     code = '''
 def f():
     """
@@ -186,20 +196,20 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL07())
+    node, docstring, errors, warnings = check_docstring(code, I0005())
     assert len(warnings) == 3
-    assert warnings[0].code == "GL07"
+    assert warnings[0].code == "I0005"
     assert warnings[0].start == Pos(4, 5)
     assert warnings[0].end == Pos(4, 5 + len("Examples"))
-    assert warnings[1].code == "GL07"
+    assert warnings[1].code == "I0005"
     assert warnings[1].start == Pos(8, 5)
     assert warnings[1].end == Pos(8, 5 + len("Parameters"))
-    assert warnings[2].code == "GL07"
+    assert warnings[2].code == "I0005"
     assert warnings[2].start == Pos(13, 5)
     assert warnings[2].end == Pos(13, 5 + len("Attributes"))
 
 
-def test_GL07_correct_order():
+def test_I0005_correct_order():
     code = '''
 def f():
     """
@@ -214,13 +224,13 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL07())
+    node, docstring, errors, warnings = check_docstring(code, I0005())
     assert len(warnings) == 0
     assert len(errors) == 1  # No blank line
-    assert errors[0].code == "ER01"
+    assert errors[0].code == "E0001"
 
 
-def test_GL09_deprecation_after_extended_summary():
+def test_I0006_deprecation_after_extended_summary():
     code = '''
 def f():
     """
@@ -237,14 +247,14 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL09())
+    node, docstring, errors, warnings = check_docstring(code, I0006())
     assert len(warnings) == 1
-    assert warnings[0].code == "GL09"
+    assert warnings[0].code == "I0006"
     assert warnings[0].start == Pos(8, 5)
     assert warnings[0].end == Pos(8, 5 + len(".. deprecated::"))
 
 
-def test_GL09_deprecation_before_extended_summary():
+def test_I0006_deprecation_before_extended_summary():
     code = '''
 def f():
     """
@@ -260,11 +270,11 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL09())
+    node, docstring, errors, warnings = check_docstring(code, I0006())
     assert len(warnings) == 0
 
 
-def test_GLE01_multiple_deprecated():
+def test_I0007_multiple_deprecated():
     code = '''
 def f():
     """
@@ -282,14 +292,14 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GLE01())
+    node, docstring, errors, warnings = check_docstring(code, I0007())
     assert len(warnings) == 1
-    assert warnings[0].code == "GLE01"
+    assert warnings[0].code == "I0007"
     assert warnings[0].start == Pos(9, 5)
     assert warnings[0].end == Pos(9, 5 + len(".. deprecated::"))
 
 
-def test_GLE01_single_deprecated():
+def test_I0007_single_deprecated():
     code = '''
 def f():
     """
@@ -306,11 +316,11 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GLE01())
+    node, docstring, errors, warnings = check_docstring(code, I0007())
     assert len(warnings) == 0
 
 
-def test_GL10_incorrect_reST_directives():
+def test_I0008_incorrect_reST_directives():
     code = '''
 def f():
     """
@@ -335,11 +345,11 @@ def f():
     """
     pass
 '''
-    node, docstring, errors, warnings = check_docstring(code, GL10())
+    node, docstring, errors, warnings = check_docstring(code, I0008())
     assert len(warnings) == 2
-    assert warnings[0].code == "GL10"
+    assert warnings[0].code == "I0008"
     assert warnings[0].start == Pos(8, 5)
     assert warnings[0].end == Pos(8, 5 + len(".. deprecated"))
-    assert warnings[1].code == "GL10"
+    assert warnings[1].code == "I0008"
     assert warnings[1].start == Pos(14, 9)
     assert warnings[1].end == Pos(14, 9 + len(".. versionadded"))
