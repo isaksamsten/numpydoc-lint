@@ -97,6 +97,8 @@ class I0009(Check):
 
 
 class I0010(Check):
+    """Validate that the summary ends with a period."""
+
     def _validate(
         self, node: Node, docstring: DocString
     ) -> Generator[Error, None, None]:
@@ -105,7 +107,7 @@ class I0010(Check):
             if data and data[0].value[-1] != ".":
                 yield Error(
                     start=data[0].pos,
-                    end=data[0].pos.move(absolute_column=len(data[0]) + 1),
+                    end=data[0].pos.move(absolute_column=len(data[0].value) + 1),
                     code="I0010",
                     suggestion="Insert a period.",
                 )

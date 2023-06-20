@@ -10,6 +10,7 @@ from numpydoc_lint.check import (
     I0006,
     I0007,
     I0008,
+    I0010,
 )
 
 
@@ -353,3 +354,15 @@ def f():
     assert warnings[1].code == "I0008"
     assert warnings[1].start == Pos(14, 9)
     assert warnings[1].end == Pos(14, 9 + len(".. versionadded"))
+
+
+def test_I0010_no_period_single_line():
+    code = '''
+def f():
+    """Summary"""
+    pass
+'''
+    node, docstring, errors, warnings = check_docstring(code, I0010())
+    assert len(warnings) == 1
+    assert warnings[0].start == Pos(3, 5)
+    assert warnings[0].end == Pos(3, 5 + len("Summary"))
