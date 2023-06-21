@@ -29,7 +29,9 @@ jobs:
           python -m pip install build pytest
 
       - name: Test
-        run: python -m pytest tests/
+        run: |
+          python -m pip install .
+          python -m pytest tests/
 
       - name: Build
         run: |
