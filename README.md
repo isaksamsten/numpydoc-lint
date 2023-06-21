@@ -88,6 +88,8 @@ Found 3 errors.
 
 # Editor integration
 
+![Screenshot](./assets/screenshot_nvim.png)
+
 We can integrate `numpydoc-lint` with our favorite editor Neovim using `null-ls` and a custom source.
 
 ```lua
