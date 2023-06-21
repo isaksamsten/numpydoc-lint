@@ -150,6 +150,7 @@ def _validate_parameter_description_ends_period(
                     end=name.end,
                     code=code,
                     suggestion=suggestion,
+                    message_args=message_args,
                 )
 
 

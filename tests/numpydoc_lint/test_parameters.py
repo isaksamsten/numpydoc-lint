@@ -345,6 +345,7 @@ def test(b, aaa: int):
     func, docstring, errors, warnings = check_docstring(code, I0102())
     assert len(warnings) == 2
     assert warnings[0].code == "I0102"
+    assert "`a`" in warnings[0].message
     assert warnings[0].start == Pos(6, 5)
     assert warnings[0].end == Pos(6, 6)
 
